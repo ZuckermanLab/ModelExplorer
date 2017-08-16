@@ -33,10 +33,13 @@ Data-sort.prl (WIP) bridges proof-maker.prl and analyze-model.prl by finding "su
 THEORY:
 
 For a more in depth discussion on cell membrane transporter proteins please see:
-http://www.physicallensonthecell.org/ - Online resource written by Dr. Zuckerman
+http://www.physicallensonthecell.org/ - Online textbook written by Dr. Zuckerman
 
 For a more in depth discussion on Transporter Cycles and Energies:
 "Free Energy Transduction and Biochemical Cycle Kinetics" by Terrel L. Hill 
+
+For a more in depth discussion on statistcal mechanics methods applied to cell biology: 
+"Statistical Physics of Biomolecules: An Introduction" by DM Zuckerman
 
 Transporters:
 *These proteins consist of: uniporters, symporters, and antiporters. 
