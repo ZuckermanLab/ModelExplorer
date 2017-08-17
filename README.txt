@@ -6,32 +6,44 @@ Analyze-model.prl written by Dr. Zuckerman and updated/modified by August George
 
 Last updated: August 14, 2017
 
-TODO: rearrange sections and redo ToC, continue writing usage/assumptions, METHODOLOGY, exapnd on introduction, 
+TODO: METHODOLOGY,??more assumptions??, ?does analyze-model need same parameters?
 
-Table of Contents:
+TABLE OF CONTENTS:
+1. INTRODUCTION 
+2. REQUIREMENTS
+3. INPUT/OUTPUT
+4. ASSUMPTIONS (in progress)
+5. USAGE
+6. METHODOLGY/ALGORITHM (in progress)
+7. THEORY
+8. BUGS
+9. CHANGELOG
+10. ACKNOWLEDGEMENTS
 
 
-INTRODUCTION:
+1. INTRODUCTION:
 
-This package includes: proof-maker and analyze-model. 
-
-This software was developed to investigate the behavior of cell membrane transporter proteins. Specficially, the programs
-creates an abastract state space representation of a transporter and then finds potential cycle pathways which optimize sugar 
-flow in and toxin flow out. These pathways can be sorted and analyzed to give the flows of sugar, sodium, and toxin flow for
-a different chemical potentials. The overall goal is the use this data to better classify transporter cycle regimes, which 
-experimental scientists can then use. 
+This program package includes: proof-maker.prl, analyze-model.prl, README.txt, and a LICENSE. 
+For legal/copyright concerns, please read LICENSE.
 
 Proof-maker.prl uses monte carlo techniques to find a range of models which satisfy the given state space system constraints. 
 Analyze-model.prl uses "successful" models from proof-maker.prl to calculate the flows with varying chemical potential. 
 
-REQUIREMENTS:
+This software was developed to investigate the behavior of cell membrane transporter proteins. Specficially, the programs
+creates an abastract state space representation of a transporter and then finds potential cycle pathways which optimize sugar 
+flow in and toxin flow out. These models can then be analyzed to give the flows of sugar, sodium, and toxin flow for
+a varying chemical potential. The overall goal is the use this data to better classify transporter cycle regimes. These regimes
+can then be used to aid experimental work and the theoretical understanding of transport cycles. 
+
+
+2. REQUIREMENTS:
 
 All programs use Perl 5 and were tested/run on *nix machines.
 *Proof-maker.prl uses Perl PDL to solve system of linear equations
-*Analyze-model uses Python/Numpy to "solve" system of linear equations (left over from proof-maker template)
+*Analyze-model.prl uses Python/Numpy to "solve" system of linear equations (left over from proof-maker base code)
 
 
-INPUT/OUTPUT:
+3. INPUT/OUTPUT:
 
 Proof-maker:
 *Inputs: None. Parameters (i.e. number of monte carlo steps) adjusted by user in program file. 
@@ -79,48 +91,65 @@ which are useful...
 ***Energies-x: file that stores state energy values at model (monte carlo) number 'x'.
 ***Barriers-x: file stores barrier energy values at model (monte carlo) number 'x'.
 
-USAGE:
-Note: both programs were tested and used on *nix machines. 
-Note: Negative Monte Carlo energies correspond to a "fit" model according to our energy function
-Note: Positive flow is defined as outside->inside
 
-Proof-maker usage:
-In general, set the alpha, nsteps, and random seed value and then run the program. 
-To run the program "$ perl -w proof-maker.prl" (or similar methods) in terminal. 
-It is recommended to save the console output to a file. This can be done by using
-"$ perl -w proof-maker.prl > datalog" (or other similar methods) in terminal.
-The srand(x) function is used for repeatability. A simulation for the same x value
-should give the same results. 
+4. ASSUMPTIONS(in progress):
 
-Useful variables/parameters for simulation:
-*$nsteps: sets how many monte carlo steps in a simulation
-*$emc: defines mc energy function. Default is -$sflow *abs($sflow/$wflow)^$alpha.
-*$alpha: meta parameter which controls the emc defined above. 
-*$seed: random number seed used in srand() function
-
-
-ASSUMPTIONS:
-
-State Space Assumptions:
 *Na must bind first (based on experimental insight)
 *Steady State Flow: constant source/drain of chemical potenial (i.e. sodium)
 
-METHODOLOGY:
+5. USAGE:
+
+Note: Both programs were tested and used on *nix machines. 
+Note: Negative Monte Carlo energies correspond to a "fit" model according to our energy function
+Note: Positive flow is defined as outside->inside
+
+Programs can be run from terminal using "$ perl -w program_name.prl" (or similar)
+It is advised to save console output using "$ perl -w program_name.prl > datalog" (or similar)
+The srand(x) function is used for repeatability. A simulation for the same x value
+should give the same results. 
+Proof-reading and Na binding can be turned on/off by setting their associated variables to 0. 
+
+Proof-maker:
+In general, set the alpha, nsteps, and random seed value and then run the program. 
+
+Some useful variables/parameters:
+*$nsteps: sets how many steps in a simulation
+*$emc: defines mc energy function. Default is -$sflow *abs($sflow/$wflow)^$alpha.
+*$alpha: meta parameter which controls the emc defined above. 
+*$seed: random number seed used in srand() function
+*$proof: turns proofreading on/off (default is 1 = ON)
+*$na_first: requires Na to bind first (default is 1 = ON)
+*$dMu_N: chemical potential change of driving force (Mu_i - Mu_o) Na (default is 6). 
+*$dMu_S: chemical potential change of sugar (default is 2)
+*$dMu_W: chemical potential change of toxin (default is 2)
+*$analysis: variable in analyze-model which determines which dMu to vary (Na or toxin)
+*$efile_init: variable in analyze-model which stores state energy filename
+*$bfile_init: variable in analyze-model which stores barrier energy filename
+*$dmu_init: variable in analyze-model which stores initital dMu value (default -6 for Na)
+*$dmu_fin: variable in analyze-model which stores final dMu value (default 0 for Na)
+
+Analyze-model:
+In general, find "successful" state and barrier energy files (located in models_from_run folder).
+Put these file names into script along with ?? alpha, nsteps, and random seed value from 
+proof-maker run ?? then run the program. 
+
+Simple Analysis:
+Plot evolver_rates.dat (gnuplot is one simple method) and look for negative valleys. Pick the 
+local min (approx). These negative values correspond "successful" models given the monte carlo
+energy function. Note the mc n number for these local minima and find the associated energies-x
+and barriers-x files. 
+Use the files to run the analyze-model script which will output 
+Analysis-vary_dmu_N-dmu_init__-6__to__dmu_fin__0. This file contains flows of N, S, and W.
+Plot these flows vs dMu. To investigate stoichiometry, plot the ratio of the flows (i.e. N/W vs dMu)
+
+
+6. METHODOLOGY (in progress):
 
 High Level algorithm:
 Subroutines:
 
 
-THEORY:
-
-For a more in-depth discussion on cell membrane transporter proteins please see:
-http://www.physicallensonthecell.org/ - Online textbook written by Dr. Zuckerman
-
-For a more in-depth discussion on Transporter Cycles and Energies:
-"Free Energy Transduction and Biochemical Cycle Kinetics" by Terrel L. Hill 
-
-For a more in-depth discussion on statistcal mechanics methods applied to cell biology: 
-"Statistical Physics of Biomolecules: An Introduction" by DM Zuckerman
+7. THEORY:
 
 Transporters:
 *These proteins consist of: uniporters, symporters, and antiporters. 
@@ -147,8 +176,17 @@ Complex cycle dynamics:
 *These cycle ineffiencies may have a functional use, providing an extra cycle step to filter out (proofread) 
 *unwanted toxins. 
 
+For a more in-depth discussion on cell membrane transporter proteins please see:
+http://www.physicallensonthecell.org/ - Online textbook written by Dr. Zuckerman
 
-BUGS/IMPROVEMENTS:
+For a more in-depth discussion on Transporter Cycles and Energies:
+"Free Energy Transduction and Biochemical Cycle Kinetics" by Terrel L. Hill 
+
+For a more in-depth discussion on statistcal mechanics methods applied to cell biology: 
+"Statistical Physics of Biomolecules: An Introduction" by DM Zuckerman
+
+
+8. BUGS:
 
 Proof-maker:
 *"use strict" errors out (currently commented out)
@@ -163,7 +201,8 @@ Possible Improvements:
 *Consolidate all programs into one program with streamlined input/output files
 *Expand abstraction to include more complex systems
 
-CHANGE LOG:
+
+9. CHANGE LOG:
 
 Update 2 (2017-08-13): Perl PDL used in place of Python/Numpy to elimate system IO call slow down in proof-maker. Uploaded as proof-maker2.prl (will keep original for historical purposes). Uploaded analyze-model.prl. Added more to README. 
 
@@ -173,7 +212,8 @@ Github repo setup.
 
 Update 0 (2016-17): Proof-maker.prl program created by Dr. Dan Zuckerman
 
-ACKNOWLEDGEMENTS:
+
+10. ACKNOWLEDGEMENTS:
 
 Thanks to Dr. Zuckerman for his work writing the proof-maker and analyze-model programs, and also for his 
 helpful advice and mentoring. 
@@ -183,3 +223,4 @@ Oregon Health and Sciences University (OHSU)
 http://www.physicallensonthecell.org/ - Useful online resource written by Dr. Zuckerman
 "Free Energy Transduction and Biochemical Cycle Kinetics" by Terrel L. Hill 
 
+stackexchange 
