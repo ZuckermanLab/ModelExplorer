@@ -3,28 +3,17 @@ Transporter State Space Modeling README
 README.txt written by August George with help from Dr. Zuckerman.
 Proof-maker.prl written by Dr. Zuckerman and updated/modified by August George.
 Analyze-model.prl written by Dr. Zuckerman and updated/modified by August George. 
-??Data-sort.prl (in progress) written by August George??
 
 Last updated: August 14, 2017
 
-TODO: rearrange sections and redo ToC, continue writing usage/assumptions, continue 
-writing data in/out and files, METHODOLOGY, exapnd on introduction,  hdd requirements?, min specs?, graph script?
+TODO: rearrange sections and redo ToC, continue writing usage/assumptions, METHODOLOGY, exapnd on introduction, 
 
 Table of Contents:
-1. Introduction
-2. Theory
-3. Requirements/Configuration
-4. Usage/Assumptions
-5. Files
-6. Data In/Out
-7. Analysis
-8. Bugs/Improvements
-9. CHANGE LOG
-10. Acknowledgements
+
 
 INTRODUCTION:
 
-This package includes: proof-maker, analyze-model, and data-sort(WIP). 
+This package includes: proof-maker and analyze-model. 
 
 This software was developed to investigate the behavior of cell membrane transporter proteins. Specficially, the programs
 creates an abastract state space representation of a transporter and then finds potential cycle pathways which optimize sugar 
@@ -34,39 +23,93 @@ experimental scientists can then use.
 
 Proof-maker.prl uses monte carlo techniques to find a range of models which satisfy the given state space system constraints. 
 Analyze-model.prl uses "successful" models from proof-maker.prl to calculate the flows with varying chemical potential. 
-Data-sort.prl (WIP) bridges proof-maker.prl and analyze-model.prl by finding "successful" models given by proof-maker.prl output. 
 
 REQUIREMENTS:
 
-All programs use Perl 5. 
+All programs use Perl 5 and were tested/run on *nix machines.
 *Proof-maker.prl uses Perl PDL to solve system of linear equations
 *Analyze-model uses Python/Numpy to "solve" system of linear equations (left over from proof-maker template)
 
+
+INPUT/OUTPUT:
+
+Proof-maker:
+*Inputs: None. Parameters (i.e. number of monte carlo steps) adjusted by user in program file. 
+*Outputs: 
+**Console Output: Outputs starting parameters and state space configurations during monte carlo loop. 
+**rate_matrix.tmp: temporary file which contains running log of rates (k) in matrix form
+**prob_ss.dat: temporary file which stores steady state values in a matrix. 
+**evolver_flows.dat: temporary file which stores running log of configuration states for trial pertubation
+**evovler_rates.dat: fiel which stores monte carlo step number and associated energy function calculation
+**models_from_run: folder which contains energies-x and barriers-x
+***energies-x: stores state energy values at model (monte carlo) number 'x'.
+***barriers-x: stores barrier energy values at model (monte carlo) number 'x'. 
+
+Proof-maker:
+*Inputs: None. 
+*Outputs: 
+**Console Output: outputs initial parameters and state space configurations during monte carlo loop. 
+**Rate_matrix.tmp: temporary file which contains running log of rates (k) in matrix form
+**Prob_ss.dat: temporary file which stores steady state values in a matrix. 
+**Evolver_flows.dat: temporary file which stores running log of configuration states for trial pertubation
+**Evovler_rates.dat: data file which stores monte carlo step number and associated energy function calculation
+**Mc_out.dat: data log file which stores state space and energy information for each monte carlo run
+**Models_from_run: folder which contains energies-x and barriers-x
+***Energies-x: stores state energy values at model (monte carlo) number 'x'.
+***Barriers-x: stores barrier energy values at model (monte carlo) number 'x'.
+
+Analyze-model:
+Note: analyze-maker uses the same code base as proof-maker so it is has similar outputs, not all of
+which are useful...
+
+*Inputs: 
+**energies-x: stores state energy values at model (monte carlo) number 'x'. Outputed by proof-maker.
+**barriers-x: stores barrier energy values at model (monte carlo) number 'x'. Outputed by proof-maker. 
+
+*Outputs: 
+**Analysis-vary_dmu_N-dmu_init__-6__to__dmu_fin__0: file that stores Sodium, Sugar, and Toxin flows
+**at a given range of dMu (ussualy dMu_Na). 
+**Console Output: outputs initial parameters and state space configurations during monte carlo loop. 
+**Rate_matrix.tmp: temporary file which contains running log of rates (k) in matrix form
+**Prob_ss.dat: temporary file which stores steady state values in a matrix. 
+**Evolver_flows.dat: temporary file which stores running log of configuration states for trial pertubation
+**Evovler_rates.dat: data file which stores monte carlo step number and associated energy function calculation
+**Mc_out.dat: data log file which stores state space and energy information for each monte carlo run
+**Models_from_run: folder which contains energies-x and barriers-x
+***Energies-x: file that stores state energy values at model (monte carlo) number 'x'.
+***Barriers-x: file stores barrier energy values at model (monte carlo) number 'x'.
+
 USAGE:
+Note: both programs were tested and used on *nix machines. 
+Note: Negative Monte Carlo energies correspond to a "fit" model according to our energy function
+Note: Positive flow is defined as outside->inside
 
 Proof-maker usage:
+In general, set the alpha, nsteps, and random seed value and then run the program. 
+To run the program "$ perl -w proof-maker.prl" (or similar methods) in terminal. 
+It is recommended to save the console output to a file. This can be done by using
+"$ perl -w proof-maker.prl > datalog" (or other similar methods) in terminal.
+The srand(x) function is used for repeatability. A simulation for the same x value
+should give the same results. 
 
+Useful variables/parameters for simulation:
+*$nsteps: sets how many monte carlo steps in a simulation
+*$emc: defines mc energy function. Default is -$sflow *abs($sflow/$wflow)^$alpha.
+*$alpha: meta parameter which controls the emc defined above. 
+*$seed: random number seed used in srand() function
 
-METHODOLOGY: 
-
-Proof-maker high level algorithm:
-*
-
-analyze-model high level algorithm:
-*
-
-?? Data-sort high level algorithm:
-*Opens proof-maker output data (evolver_rates.dat) which contains MC number and MC Energies. 
-*Searches for all negative values (negative = successful model) and writes them to a temp file.
-*Searches for valleys in negative data values within a user determined variance
-*Writes the bottom data values of each valley to a data file
-??
 
 ASSUMPTIONS:
 
 State Space Assumptions:
 *Na must bind first (based on experimental insight)
 *Steady State Flow: constant source/drain of chemical potenial (i.e. sodium)
+
+METHODOLOGY:
+
+High Level algorithm:
+Subroutines:
+
 
 THEORY:
 
@@ -112,11 +155,7 @@ Proof-maker:
 *Distance subroutine is a bottleneck
 
 analyze model:
-*still calls python to solve matrix (bottle neck)
-
-??data-sort:
-*need algorithm/function to find valleys within certan variance
-??
+*still calls python/numpy to solve matrix (bottle neck)
 
 Possible Improvements:
 *Optimize PDL matrix solving funtion
