@@ -4,9 +4,11 @@ README.txt written by August George with help from Dr. Zuckerman.
 Proof-maker.prl written by Dr. Zuckerman and updated/modified by August George.
 Analyze-model.prl written by Dr. Zuckerman and updated/modified by August George. 
 
-Last updated: August 14, 2017
+Last updated: September 13, 2017
 
-TODO: METHODOLOGY,??more assumptions??, ?does analyze-model need same parameters?
+!BUG! - Energy state not restored to last accepted state after rejection. Need to fix and then add unit test. 
+
+TODO: METHODOLOGY,more assumptions?, fix "restore state after rejection" bug, add unit test to check energies have been restored 
 
 TABLE OF CONTENTS:
 1. INTRODUCTION 
@@ -186,7 +188,9 @@ For a more in-depth discussion on statistcal mechanics methods applied to cell b
 "Statistical Physics of Biomolecules: An Introduction" by DM Zuckerman
 
 
-8. BUGS:
+8. BUGS/Improvements:
+
+!BUG! - Energy state not restored to last accepted state after rejection. Need to fix and then add unit test. 
 
 Proof-maker:
 *"use strict" errors out (currently commented out)
@@ -196,7 +200,9 @@ analyze model:
 *still calls python/numpy to solve matrix (bottle neck)
 
 Possible Improvements:
+*Add unit tests ( sum of probabilites = 1, energy before trial move = energy after rejection/restore step)
 *Optimize PDL matrix solving funtion
+*Optimize code to run on cluster
 *Port (or rewrite) programs to python/numpy
 *Consolidate all programs into one program with streamlined input/output files
 *Expand abstraction to include more complex systems
