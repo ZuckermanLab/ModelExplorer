@@ -98,6 +98,7 @@ which are useful...
 
 *Na must bind first (based on experimental insight)
 *Steady State Flow: constant source/drain of chemical potenial (i.e. sodium)
+*Should toxin be strictly 2KT higher energy than sugar? 
 
 5. USAGE:
 
