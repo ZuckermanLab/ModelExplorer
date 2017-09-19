@@ -98,7 +98,7 @@ which are useful...
 
 *Na must bind first (based on experimental insight)
 *Steady State Flow: constant source/drain of chemical potenial (i.e. sodium)
-*Should toxin be strictly 2KT higher energy than sugar? 
+*Should toxin be strictly 2KT higher energy than sugar? (dg_SW=2?)
 *Should barrier difference = 0 for s & w?
 
 5. USAGE:
@@ -123,9 +123,11 @@ Some useful variables/parameters:
 *$seed: random number seed used in srand() function
 *$proof: turns proofreading on/off (default is 1 = ON)
 *$na_first: requires Na to bind first (default is 1 = ON)
-*$dMu_N: chemical potential change of driving force (Mu_i - Mu_o) Na (default is 6). 
+*$dMu_N: chemical potential change of driving force (Mu_i - Mu_o) Na (default is -4). 
 *$dMu_S: chemical potential change of sugar (default is 2)
 *$dMu_W: chemical potential change of toxin (default is 2)
+*$dg_SW: binding energy difference between S and W (default is 2) <--Asumption!
+
 *$analysis: variable in analyze-model which determines which dMu to vary (Na or toxin)
 *$efile_init: variable in analyze-model which stores state energy filename
 *$bfile_init: variable in analyze-model which stores barrier energy filename
