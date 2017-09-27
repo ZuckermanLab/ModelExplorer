@@ -4,7 +4,7 @@ README.txt written by August George with help from Dr. Zuckerman.
 Proof-maker.prl written by Dr. Zuckerman and updated/modified by August George.
 Analyze-model.prl written by Dr. Zuckerman and updated/modified by August George. 
 
-Last updated: September 13, 2017
+Last updated: September 27, 2017
 
 !BUG! - Energy state not restored to last accepted state after rejection. Need to fix and then add unit test. 
 
@@ -195,6 +195,11 @@ For a more in-depth discussion on statistcal mechanics methods applied to cell b
 8. BUGS/Improvements:
 
 !BUG! - Energy state not restored to last accepted state after rejection. Need to fix and then add unit test. 
+Current hypothesis is that some states are in more than one "tied energies" list. When one set of tied energies is adjusted in the adjust_tied_energies routine, the other set of "tied" energies is not adjusted, creating a discrepeancy between the energy levels. For example: state C is in 2 tied state lists: (A-B-C) and (C-D-E). If state C is perturbed, A and B are pertbured but D and E will not be perturbed. So C is set to a different level than it was at originally with C-D-E, leaving an incorrect energy in the C-D-E list. 
+
+Debugging findings: Energies are properly restored after rejection ~50% of the time. During the restore step (adjust_tied_energies), the energies are not all changed by the same amount as they are during the trial move step (adjust_tied_energies). This can be seen by comparing the energy differences before and after the adjust_tied_energies routine for both the trial move and restoration steps. 
+
+Need to verify that states belong to multiple tied energies lists. Then create and implement master state/energy list to use instead of pair-wise connections. The master list will contain the list of states (i.e. state0, state1) and energies compared to an arbitrary state (i.e. state0 has energy = 0.0, state1 has energy delta = 2). 
 
 Proof-maker:
 *"use strict" errors out (currently commented out)
