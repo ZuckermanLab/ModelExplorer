@@ -16,7 +16,7 @@ TABLE OF CONTENTS:
 3. INPUT/OUTPUT
 4. ASSUMPTIONS (in progress)
 5. USAGE
-6. METHODOLGY/ALGORITHM (in progress)
+6. METHODOLGY/ALGORITHM/notes (in progress)
 7. THEORY
 8. BUGS
 9. CHANGELOG
@@ -154,6 +154,8 @@ Plot these flows vs dMu. To investigate stoichiometry, plot the ratio of the flo
 High Level algorithm:
 Subroutines:
 
+Note: $nchange is used to see if two states are equivalent (for binding of the other other species)
+### (i.e. for OF: NoSiWo->NoSbWo->NoSoWo differs by one "equivalent" unit Ni/No, No/Ni from NiSiWo->NiSbWo->NiSoWo) 
 
 7. THEORY:
 
