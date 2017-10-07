@@ -293,6 +293,8 @@ print "\n";
 # Relative affinity pairs omitted here to avoid incorrectly making equivalent states
 ### Algorithm: compare state pairs for differences in tied_bases array
 ### When a match is found, replace unit name in state name - what remains at end must match
+### Note: $nchange is used to see if two states are equivalent (for binding of the other other species)
+### (i.e. for OF: NoSiWo->NoSbWo->NoSoWo differs by one "equivalent" unit Ni/No, No/Ni from NiSiWo->NiSbWo->NiSoWo) 
 @tied_states = ();  # states themselves which are physically equivalent
 @tied_states_tr = ();  # states which are physically equivalent for transitions
 @tied_energies = (); # energy values relative to arbitrary reference
@@ -302,7 +304,7 @@ for ( $i=0; $i<$nstates; $i++ ) {
       $iname = $snames[$i]; $aname = $iname;
       $jname = $snames[$j]; $bname = $jname;
       $etmp = 0;
-      $nchange = 0; # counter for number of changes to make identical
+      $nchange = 0; # counter for number of changes to make identical. 
       #print "Checking states $i = $iname and $j = $jname\n";
       foreach $list ( @tied_bases ) {
          $uref = $$list[0]; $uto = $$list[1]; $delmu = $$list[2];
