@@ -7,24 +7,27 @@ use PDL; #Using PDL to solve matrix in perl - AG 2017
 # Additional updates by August George, Summer 2017
 # Please see README
 
-# UPDATES: Replaced system IO call to python/numpy with perl PDL decreasing runtime by 3x. 
+# UPDATES: Replaced system IO call to python/numpy with perl PDL decreasing runtime by 3x.
 
 # USAGE: ./proof-maker.prl > log  (i.e., there is no input file)
 # In addition to screen ouput (which can be re-directed to log file) several files are
 # generated automatically.
 # To output to logfile: " $ perl -w proof-maker.prl > LOG.txt" in terminal  (or similar).
 # For basic analysis, plot MC energy vs step number: first two columns of evolver_rates.dat,
-# which is one of the output files. Negative energies correspond to "successful" models 
-# given by the energy function. 
+# which is one of the output files. Negative energies correspond to "successful" models
+# given by the energy function.
 
 # BUGS: "use strict" errors out... "Variable name" requires explicit package name.
 # Bottleneck with distance subroutine running each MC iteration.
+# Energies not properly restored after reject/restore step
 
 # UNIT TESTS TO ADD:
 # (1) Sum of steady state probabilities is one
 # (2) Ratio of rates for a state pair give Boltz fac of energy difference
 # (3) Energy differences among tied states match constraints
 # (4) Energies of fixed states remain at constrained values
+# (5) Reject/Restore step properly restores energies
+# (6) Tied states graphs are self-consistent
 
 # To get estimated runtime
 my $start_time = time();
@@ -34,7 +37,7 @@ $proof = 1; # 1 if proofreading (additional states and transitions present compa
 $na_first = 1; # 1 if 'sodium' (N) is forced to bind first
 
 ### MONTE CARLO PARAMETERS ###
-$nsteps = 1e4; # number of Monte Carlo steps
+$nsteps = 1e0; # number of Monte Carlo steps
 $dprint = 1e0; # interval between prints
 $n_beta = 2e2; # number of MC steps after which beta (inverse temperature) changes
 $seed = 45459; # seed for random number generator
@@ -95,8 +98,10 @@ if ( $proof==1 ) {
    #push @tied_bases, [ "Wo", "Wi", $dmu_W ]; # chemical potential info
    # Info for fixed relative affinities between S and W
    @tied_bases_ne = ();
-   push @tied_bases_ne, [ "Sb-Wi", "Si-Wb", $dg_SW ];
-   push @tied_bases_ne, [ "Sb-Wo", "So-Wb", $dg_SW ];
+   push @tied_bases_ne, [ "Sb-Wi", "Si-Wb", $dg_SW ]; #Sb-Wi tied to Si-Wb
+   push @tied_bases_ne, [ "Sb-Wo", "So-Wb", $dg_SW ]; #Sb-Wo tied to So-Wb
+   push @tied_bases_ne, [ "Sb-Wi", "So-Wb", $dg_SW ]; #Sb-Wi tied to So-Wb
+   push @tied_bases_ne, [ "Sb-Wo", "Si-Wb", $dg_SW ]; #Sb-Wo tied to Si-Wb
 }
 
 # For proofreading, assume W and S (toxin and substrate) have same energy barrier for (un)binding
@@ -170,10 +175,11 @@ $mcfile = "mc_out.dat";
 $kfile = "rate_matrix.tmp";
 $datfile = "evolver_rates.dat";
 $flowfile = "evolver_flows.dat";
+$debugfile = "debug";
 open(MCFILE, "> $mcfile");
 open(DATA, "> $datfile");
 open(FLOWS, "> $flowfile");
-
+open(DEBUG, "> $debugfile");
 $n_units = @state_bases; # the number of units/modules
 print "\nUNITS:\n";
 print "Number of units/cycles/modules is $n_units\n\n";
@@ -222,7 +228,8 @@ if ( $n_units==3 ) {
       }
    }
 }
-elsif ( $n_units==4 ) {
+elsif ( $n_units==4 ) {# Creates nxn zero matrix. Used for adjacency and relative energies matrix
+
    print "Four modules ... finding states ...\n";
    #print "elements $state_bases[0][0]  $state_bases[0][1]\n";
    $i=0;
@@ -256,6 +263,16 @@ elsif ( $n_units==4 ) {
 print "\n";
 $nstates = @states;
 print "\nConstructed $nstates states\n";
+
+# Create a null adjacent matrix with elements A_ij and states i,j.
+# If states are connected then A_ij = A_ji = 1. Else, A_ij = A_ji = 0.
+my @state_adjacent_matrix = ();
+push @state_adjacent_matrix, [(0)x$nstates] for (1..$nstates);
+
+# Create a null matrix with relative energy difference betwen states i and j.
+# i.e. A_ij = E_j - E_i and A_ji = E_i-E_j (which is $etmp and -$etmp respectively)
+my @state_relative_energy= ();
+push @state_relative_energy, [(0)x$nstates] for (1..$nstates);
 
 
 # Make energy hash, assign initial energies (all zero except if in fixed list)
@@ -294,7 +311,7 @@ print "\n";
 ### Algorithm: compare state pairs for differences in tied_bases array
 ### When a match is found, replace unit name in state name - what remains at end must match
 ### Note: $nchange is used to see if two states are equivalent (for binding of the other other species)
-### (i.e. for OF: NoSiWo->NoSbWo->NoSoWo differs by one "equivalent" unit Ni/No, No/Ni from NiSiWo->NiSbWo->NiSoWo) 
+### (i.e. for OF: NoSiWo->NoSbWo->NoSoWo differs by one "equivalent" unit Ni/No, No/Ni from NiSiWo->NiSbWo->NiSoWo)
 @tied_states = ();  # states themselves which are physically equivalent
 @tied_states_tr = ();  # states which are physically equivalent for transitions
 @tied_energies = (); # energy values relative to arbitrary reference
@@ -304,7 +321,7 @@ for ( $i=0; $i<$nstates; $i++ ) {
       $iname = $snames[$i]; $aname = $iname;
       $jname = $snames[$j]; $bname = $jname;
       $etmp = 0;
-      $nchange = 0; # counter for number of changes to make identical. 
+      $nchange = 0; # counter for number of changes to make identical.
       #print "Checking states $i = $iname and $j = $jname\n";
       foreach $list ( @tied_bases ) {
          $uref = $$list[0]; $uto = $$list[1]; $delmu = $$list[2];
@@ -330,6 +347,10 @@ for ( $i=0; $i<$nstates; $i++ ) {
          print "TRUE MATCH: $aname -> $bname with energy change $etmp   nchange=$nchange\n";
          push @tied_states, [ $aname, $bname ];
          push @tied_energies, [ 0.0,   $etmp ];
+         $state_adjacent_matrix[$i][$j] = 1; #if states are connected, A_ij = A_ji = 1
+         $state_adjacent_matrix[$j][$i] = 1;
+         $state_relative_energy[$i][$j] = $etmp; #energy difference Ej-Ei for connected pair = etmp
+         $state_relative_energy[$j][$i] = -$etmp; #energy difference
          if ( $nchange==1 ) {
             push @tied_states_tr, [ $aname, $bname ];
          }
@@ -404,6 +425,10 @@ for ( $i=0; $i<$nstates; $i++ ) {
          print "TRUE MATCH: $aname -> $bname with energy change $etmp   nchange=$nchange\n";
          push @tied_states, [ $aname, $bname ];
          push @tied_energies, [ 0.0,   $etmp ];
+         $state_adjacent_matrix[$i][$j] = 1; #if states are connected, A_ij = A_ji = 1
+         $state_adjacent_matrix[$j][$i] = 1;
+         $state_relative_energy[$i][$j] = $etmp; #etmp is energy difference Ej-Ei for A_ij
+         $state_relative_energy[$j][$i] = -$etmp; # -etmp is energy difference Ei-Ej for A_ji
          # Note: No equivalent transitions generated - only relative affinities
          #if ( $nchange==1 ) {
             #push @tied_states_tr, [ $aname, $bname ];
@@ -965,7 +990,7 @@ if ( $n%$dprint==0 ) {
 close(MCFILE);
 close(DATA);
 close(FLOWS);
-
+close(DEBUG);
 
 #### Subroutines
 sub initialize_barriers { # initialize barrier energies and edges array
@@ -1017,7 +1042,7 @@ foreach $sa (@states) {
 }
 
 # Use pdl to solve matrix instead of python/numpy -7/18/17 AG
-# Solves [A][X] = [B] my multiplying both side by [A] inverse matrix. 
+# Solves [A][X] = [B] my multiplying both side by [A] inverse matrix.
 # ([A]^-1)x[X] = ([A]^-1)x[B] => [I][X] = ([A]^-1)x[B] where [I] is the identity matrix
 
 sub call_pdl { # generate file for Python solution
@@ -1030,7 +1055,7 @@ my $a = zeros($n_alt,$n_alt); # initializes [A] matrix to all zeros
 my $b = zeros(1,$n_alt); # initializes [B] matrix to all zeros
 my $c = zeros($n_alt,$n_alt); # initilizes [x] matrix to all zeros
 
-set($b,0,($n_alt-1),1); # sets bottom (last) B matrix value to 1 
+set($b,0,($n_alt-1),1); # sets bottom (last) B matrix value to 1
 
 
 # sets values of A matrix by iterating through loop
@@ -1479,6 +1504,11 @@ sub energy_noneq {
     #if ( $all_defined == 1 ) { return $sum; }
     #else { return "bunk"; }
     return $sum;
+}
+
+# Empty debug subroutine to be used as needed.
+sub debug {
+  #Print DEBUG "debugging line #...";
 }
 
 # Caculates and prints script runtime in seconds
