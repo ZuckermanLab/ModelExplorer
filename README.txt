@@ -4,9 +4,9 @@ README.txt written by August George with help from Dr. Zuckerman.
 Proof-maker.prl written by Dr. Zuckerman and updated/modified by August George.
 Analyze-model.prl written by Dr. Zuckerman and updated/modified by August George. 
 
-Last updated: September 27, 2017
+Last updated: COtober 9, 2017 - Added tied state adjacency matrix, relative energies matrix, and (empty) debug subroutine and file output. ALSO NEED TO CHANGE BARRIERS/TRANSITIONS
 
-!BUG! - Energy state not restored to last accepted state after rejection. Need to fix and then add unit test. 
+!BUG! - Energy state not restored to last accepted state after rejection. Need to fix and then add unit test. Currently working on algorithm that will check the conistency of each cycle (sum E = 0 around a cycle) in the graphs created by the adjacency matrix. Will then need to adjust energies based on the direct (and indirect) connections provided by these graphs. 
 
 TODO: METHODOLOGY,more assumptions?, fix "restore state after rejection" bug, add unit test to check energies have been restored 
 
