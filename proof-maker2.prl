@@ -79,12 +79,12 @@ print "\n\n";
                  [ "No", "Nb", "Ni" ],     # Na on outside, bound, on inside
                  [ "So", "Sb", "Si" ],     # Sugar on outside, bound, on inside
                );
-if ( $proof==1 ) { push @state_bases, [ "Wo", "Wb", "Wi" ]; }
+if ( $proof==1 ) { push @state_bases, [ "Wo", "Wb", "Wi" ]; } #toxin is on outside, bound, on inside
 
 # Information for MC 'energy'/fitness scoring
 @goals = ( "Sb", "Si"); # the goal/function is to transition from $goals[0] to $goals[1] - e.g., transport sugar to inside
 @ionfwd = ( "Nb", "Ni" ); # the change that leads to ion flow
-if ( $proof==1 ) { @not_goals = ( "Wb", "Wi" ); }
+if ( $proof==1 ) { @not_goals = ( "Wb", "Wi" ); } # do not want to transport toxin!
 
 # Define states of units which are physically equivalent given steady state in which concentrations
 # inside and out are held fixed.  So after an ion is transported, the physical state is the same.
@@ -94,7 +94,7 @@ push @tied_bases, [ "So", "Si", 0.0 ];
 #push @tied_bases, [ "No", "Ni", $dmu_N ];
 #push @tied_bases, [ "So", "Si", $dmu_S ];
 if ( $proof==1 ) {
-   push @tied_bases, [ "Wo", "Wi", 0.0 ]; # chemical potential info
+   push @tied_bases, [ "Wo", "Wi", 0.0 ]; # chemical potential info (is dummy entry)
    #push @tied_bases, [ "Wo", "Wi", $dmu_W ]; # chemical potential info
    # Info for fixed relative affinities between S and W
    @tied_bases_ne = ();
@@ -120,6 +120,7 @@ push @slowies, ["IF", "Sb", "So"]; # b (bound) to i (inside) transition is slow 
 push @slowies, ["OF", "Sb", "Si"]; # b (bound) to o (outside) transition is slow in OF
 push @slowies, ["IF", "Wb", "Wo"]; # b (bound) to i (inside) transition is slow in IF
 push @slowies, ["OF", "Wb", "Wi"]; # b (bound) to o (outside) transition is slow in OF
+
 # below not used - I made slowies array more specific so subroutine could be simpler
 #push @slowies, ["IF", "b", "o"]; # b (bound) to i (inside) transition is slow in IF
 #push @slowies, ["OF", "b", "i"]; # b (bound) to o (outside) transition is slow in OF
@@ -163,13 +164,13 @@ else { $fixed_states{"OF-No-So"} = 0.0;  } # start/reference state: nothing boun
 # note that context can be provided by including a conformational state
 # note that order does not matter
 @exclude = (
-             "Sb-Wb"
+             "Sb-Wb" # Sugar and Toxin cannot both be bound!
              #"OF-Ni", "OF-Si" # these will prevent unbinding to inside from OF conformation
              #"Sb-Ni", # means "Sb" and "Ni" cannot occur together in a state
              #"IF-Sb-Nb"
            );
 
-
+# create output files
 $tmpfile = "prob_ss.dat";
 $mcfile = "mc_out.dat";
 $kfile = "rate_matrix.tmp";
@@ -228,7 +229,7 @@ if ( $n_units==3 ) {
       }
    }
 }
-elsif ( $n_units==4 ) {# Creates nxn zero matrix. Used for adjacency and relative energies matrix
+elsif ( $n_units==4 ) {
 
    print "Four modules ... finding states ...\n";
    #print "elements $state_bases[0][0]  $state_bases[0][1]\n";
@@ -309,7 +310,7 @@ print "\n";
 # Generate list of tied states - related by fixed energy values
 # Relative affinity pairs omitted here to avoid incorrectly making equivalent states
 ### Algorithm: compare state pairs for differences in tied_bases array
-### When a match is found, replace unit name in state name - what remains at end must match
+### When a match is found, replace unit name in state name (w/ XX) - what remains at end must match
 ### Note: $nchange is used to see if two states are equivalent (for binding of the other other species)
 ### (i.e. for OF: NoSiWo->NoSbWo->NoSoWo differs by one "equivalent" unit Ni/No, No/Ni from NiSiWo->NiSbWo->NiSoWo)
 @tied_states = ();  # states themselves which are physically equivalent
@@ -343,16 +344,17 @@ for ( $i=0; $i<$nstates; $i++ ) {
             $nchange ++ ;
          }
       } # end of loop for each pair of tied bases
+      # if names match...
       if ( $iname eq $jname ) {
          print "TRUE MATCH: $aname -> $bname with energy change $etmp   nchange=$nchange\n";
          push @tied_states, [ $aname, $bname ];
          push @tied_energies, [ 0.0,   $etmp ];
          $state_adjacent_matrix[$i][$j] = 1; #if states are connected, A_ij = A_ji = 1
          $state_adjacent_matrix[$j][$i] = 1;
-         $state_relative_energy[$i][$j] = $etmp; #energy difference Ej-Ei for connected pair = etmp
-         $state_relative_energy[$j][$i] = -$etmp; #energy difference
+         $state_relative_energy[$i][$j] = $etmp; #energy difference at A_ij = Ej-Ei = etmp
+         $state_relative_energy[$j][$i] = -$etmp; #energy difference at A_ji = Ei-Ej = -etmp
          if ( $nchange==1 ) {
-            push @tied_states_tr, [ $aname, $bname ];
+            push @tied_states_tr, [ $aname, $bname ]; #tied transition state if nchange is 1
          }
       }
    }
@@ -421,14 +423,36 @@ for ( $i=0; $i<$nstates; $i++ ) {
             $nchange ++ ;
          }
       } # end of loop for each pair of tied bases
+      # goes through remaining connections (i.e. Ni/No)
+      foreach $list ( @tied_bases ) {
+         $uref = $$list[0]; $uto = $$list[1]; $delmu = $$list[2];
+         #print ".. tied: from $uref to $uto delta_mu = $delmu\n";
+         if ( $iname =~ /$uref/ && $jname =~ /$uto/ ) {
+            $etmp += $delmu;
+            #print ".... Match!  etmp now = $etmp";
+            $iname =~ s/$uref/XX/;
+            $jname =~ s/$uto/XX/;
+            #print " .. new names: iname=$iname  jname=$jname\n";
+            $nchange ++ ;
+         }
+         elsif ( $jname =~ /$uref/ && $iname =~ /$uto/ ) {
+            $etmp -= $delmu;
+            #print ".... Match!  etmp now = $etmp";
+            $jname =~ s/$uref/XX/;
+            $iname =~ s/$uto/XX/;
+            #print " .. new names: iname=$iname  jname=$jname\n";
+            $nchange ++ ;
+         }
+      }
+      #if names match...
       if ( $iname eq $jname ) {
          print "TRUE MATCH: $aname -> $bname with energy change $etmp   nchange=$nchange\n";
          push @tied_states, [ $aname, $bname ];
          push @tied_energies, [ 0.0,   $etmp ];
          $state_adjacent_matrix[$i][$j] = 1; #if states are connected, A_ij = A_ji = 1
          $state_adjacent_matrix[$j][$i] = 1;
-         $state_relative_energy[$i][$j] = $etmp; #etmp is energy difference Ej-Ei for A_ij
-         $state_relative_energy[$j][$i] = -$etmp; # -etmp is energy difference Ei-Ej for A_ji
+         $state_relative_energy[$i][$j] = $etmp; #energy difference at A_ij = Ej-Ei = etmp
+         $state_relative_energy[$j][$i] = -$etmp; #energy difference at A_ji = Ei-Ej = -etmp
          # Note: No equivalent transitions generated - only relative affinities
          #if ( $nchange==1 ) {
             #push @tied_states_tr, [ $aname, $bname ];
@@ -616,8 +640,6 @@ if ( $proof==1 ) {
   print "\n";
 }
 
-
-
 ################################################################
 for ( $n=0; $n<=$nsteps; $n++ ) { # MONTE CARLO LOOP
 ################################################################
@@ -639,9 +661,9 @@ if ( $n>0 ) {
          #print MCFILE "MC: chosen state $tmpstate    state_ok = $state_ok\n";
       }
       $delta_e = 2.0*$demax*( rand() - 0.5 ); # amount by which energy of state to be perturbed
-      $old_energy = $energies{$tmpstate};
-      $new_energy = $old_energy + $delta_e;
-      $energies{$tmpstate} = $new_energy;
+      $old_energy = $energies{$tmpstate}; # keep track of perturbed state's energy
+      $new_energy = $old_energy + $delta_e; # perturb energy
+      $energies{$tmpstate} = $new_energy; # set state's energy to new energy 
       print MCFILE "Perturb state $tmpstate by delta_e=$delta_e from $old_energy to $new_energy\n";
       adjust_tied_energies( $tmpstate ); # adjust other state energies for constraints
    }
@@ -1506,9 +1528,9 @@ sub energy_noneq {
     return $sum;
 }
 
-# Empty debug subroutine to be used as needed.
+# Debug subroutine to be used as needed.
 sub debug {
-  #Print DEBUG "debugging line #...";
+
 }
 
 # Caculates and prints script runtime in seconds
