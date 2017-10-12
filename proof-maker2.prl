@@ -5,21 +5,30 @@ use PDL; #Using PDL to solve matrix in perl - AG 2017
 # properties as MC 'energy'.
 # Written by DM Zuckerman 2016-17
 # Additional updates by August George, Summer 2017
-# Please see README
+# Please see README for more information
 
-# UPDATES: Replaced system IO call to python/numpy with perl PDL decreasing runtime by 3x.
+# IN PROGRESS: Convert adjacency graph into submatrices (in python), check consistency,
+# export adjacency submatrices to perl. Consolidate subroutines.
+
+# UPDATES: Added adjacency and relative energy matrix. Subroutine to convert
+# adjacency matrix to .csv. Subroutine to convert .csv matrix to graph (using python).
+
+# BUGS:
+# Energies not properly restored after reject/restore step. Also need to check barriers
+#"use strict" errors out... "Variable name" requires explicit package name.
 
 # USAGE: ./proof-maker.prl > log  (i.e., there is no input file)
 # In addition to screen ouput (which can be re-directed to log file) several files are
 # generated automatically.
-# To output to logfile: " $ perl -w proof-maker.prl > LOG.txt" in terminal  (or similar).
 # For basic analysis, plot MC energy vs step number: first two columns of evolver_rates.dat,
 # which is one of the output files. Negative energies correspond to "successful" models
 # given by the energy function.
 
-# BUGS: "use strict" errors out... "Variable name" requires explicit package name.
-# Bottleneck with distance subroutine running each MC iteration.
-# Energies not properly restored after reject/restore step
+# TOP TO-DO (see full list in readme):
+# Improve program performance (distance subroutine botleneck, PDL matrix solver)
+# Improve documentation (code comments and readme)
+# Rewrite code into subroutines
+# Add unit tests
 
 # UNIT TESTS TO ADD:
 # (1) Sum of steady state probabilities is one
@@ -30,7 +39,7 @@ use PDL; #Using PDL to solve matrix in perl - AG 2017
 # (6) Tied states graphs are self-consistent
 
 # To get estimated runtime
-my $start_time = time();
+my $start_time = time(); # for basic performance testing
 
 ### Simulation type
 $proof = 1; # 1 if proofreading (additional states and transitions present compared to simple transport)
@@ -640,6 +649,8 @@ if ( $proof==1 ) {
   print "\n";
 }
 
+adjancent_matrix_to_csv(); #testing
+python_networkx(); #testing
 ################################################################
 for ( $n=0; $n<=$nsteps; $n++ ) { # MONTE CARLO LOOP
 ################################################################
@@ -663,7 +674,7 @@ if ( $n>0 ) {
       $delta_e = 2.0*$demax*( rand() - 0.5 ); # amount by which energy of state to be perturbed
       $old_energy = $energies{$tmpstate}; # keep track of perturbed state's energy
       $new_energy = $old_energy + $delta_e; # perturb energy
-      $energies{$tmpstate} = $new_energy; # set state's energy to new energy 
+      $energies{$tmpstate} = $new_energy; # set state's energy to new energy
       print MCFILE "Perturb state $tmpstate by delta_e=$delta_e from $old_energy to $new_energy\n";
       adjust_tied_energies( $tmpstate ); # adjust other state energies for constraints
    }
@@ -1532,6 +1543,63 @@ sub energy_noneq {
 sub debug {
 
 }
+
+sub adjancent_matrix_to_csv {
+
+  my $adjacent_file ="adjacent_matrix.csv";
+  open(MATRIX, "> $adjacent_file");
+
+  for ($i = 0; $i < $nstates; $i++){
+      if ($i==0){
+        print MATRIX " , $snames[$i], ";
+      }
+      elsif ($i < $nstates && $i >= 1){
+          print MATRIX "$snames[$i], ";
+      }
+    }
+  print MATRIX "\n";
+  for ($i = 0; $i < $nstates; $i++){
+      print MATRIX "$snames[$i], ";
+    for ($j = 0; $j < $nstates; $j++ ){
+        print MATRIX "$state_adjacent_matrix[$i][$j], " ;
+    }
+  print MATRIX "\n";
+  }
+
+  close(MATRIX);
+}
+
+#this script loads in adjacency matrix (in .csv format)from proof-maker
+#then it converts the matrix to graph then to sub matrices to use in proof-maker
+sub python_networkx {
+    my $pythonfile = "python_graph_script.py";
+    my $csvfile = "adjacent_matrix.csv";
+    my $graph_pngfile = "graph.png";
+    open(PYTHON, "> $pythonfile");
+
+    print PYTHON "#This script loads adjacency matrix (.csv), converts to graph\n";
+    print PYTHON "#then converts graph to sub adjacency matrices for proof-maker. -AG 2017\n";
+    print PYTHON "from numpy import genfromtxt\n";
+    print PYTHON "import numpy as np\n";
+    print PYTHON "import matplotlib.pyplot as plt\n";
+    print PYTHON "import networkx as nx\n";
+
+    print PYTHON "mydata = genfromtxt(\"$csvfile\", delimiter=',')\n";
+    print PYTHON "adjacency = mydata[1:,1:]\n";
+    print PYTHON "def show_graph(adjacency_matrix):\n";
+    	print PYTHON "\trows, cols = np.where(adjacency_matrix == 1)\n";
+    	print PYTHON "\tedges = zip(rows.tolist(), cols.tolist()) #zip function creates list\n";
+    	print PYTHON "\tgr = nx.Graph()\n";
+    	print PYTHON "\tgr.add_edges_from(edges)\n";
+    	print PYTHON "\tplt.show()\n";
+    	print PYTHON "\tnx.draw(gr, node_size=1, pos = nx.spring_layout(gr,k=0.15,iterations=20))\n";
+    	print PYTHON "\tplt.savefig(\"$graph_pngfile\", dpi=1000 )\n";
+
+    print PYTHON "show_graph(adjacency)\n";
+
+    close(PYTHON);
+    system("python $pythonfile"); #system call to run python file
+};
 
 # Caculates and prints script runtime in seconds
 my $end_time = time();
