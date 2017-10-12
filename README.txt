@@ -8,7 +8,7 @@ Last updated: COtober 9, 2017 - Added tied state adjacency matrix, relative ener
 
 !BUG! - Energy state not restored to last accepted state after rejection. Need to fix and then add unit test. Currently working on algorithm that will check the conistency of each cycle (sum E = 0 around a cycle) in the graphs created by the adjacency matrix. Will then need to adjust energies based on the direct (and indirect) connections provided by these graphs. 
 
-TODO: METHODOLOGY,more assumptions?, fix "restore state after rejection" bug, add unit test to check energies have been restored 
+Readme TODO: METHODOLOGY,more assumptions?, 
 
 TABLE OF CONTENTS:
 1. INTRODUCTION 
@@ -18,7 +18,7 @@ TABLE OF CONTENTS:
 5. USAGE
 6. METHODOLGY/ALGORITHM/notes (in progress)
 7. THEORY
-8. BUGS
+8. BUGS/To-Do
 9. CHANGELOG
 10. ACKNOWLEDGEMENTS
 
@@ -194,40 +194,40 @@ For a more in-depth discussion on statistcal mechanics methods applied to cell b
 "Statistical Physics of Biomolecules: An Introduction" by DM Zuckerman
 
 
-8. BUGS/Improvements:
+8. BUGS/To-Do:
 
 !BUG! - Energy state not restored to last accepted state after rejection. Need to fix and then add unit test. 
-Current hypothesis is that some states are in more than one "tied energies" list.
-When one set of tied energies is adjusted in the adjust_tied_energies routine, the other set of "tied" energies is not adjusted,
-creating a discrepeancy between the energy levels. 
-For example: state C is in 2 tied state lists: (A-B-C) and (C-D-E). If state C is perturbed, A and B are pertbured 
-but D and E will not be perturbed. So C is set to a different level than it was at originally with C-D-E, 
-leaving an incorrect energy in the C-D-E list. 
+Current hypothesis is that some states more connected than the program calculates. NEED TO CHECK BARRIERS?TRANSITIONS!
 
-Debugging findings: Energies are properly restored after rejection ~50% of the time. During the restore step 
-(adjust_tied_energies), the energies are not all changed by the same amount as they are during the trial move step 
-(adjust_tied_energies). This can be seen by comparing the energy differences before and after the adjust_tied_energies routine 
-for both the trial move and restoration steps. 
+Debugging findings: Created adjacency matrix and graph and found that tied states are more connected than previously thought
+Currently creating sub adjacency matrices to unit test for consistency and then use in adjust tied energies. 
 
-Need to verify that states belong to multiple tied energies lists. Then create and implement master state/energy list to use 
-instead of pair-wise connections. The master list will contain the list of states (i.e. state0, state1) and energies compared to 
-an arbitrary state (i.e. state0 has energy = 0.0, state1 has energy delta = 2). 
+Proof-maker Unit Tests to Add:
+(1) Sum of steady state probabilities is one
+(2) Ratio of rates for a state pair give Boltz fac of energy difference
+(3) Energy differences among tied states match constraints
+(4) Energies of fixed states remain at constrained values
+(5) Reject/Restore step properly restores energies
+(6) Tied states graphs are self-consistent
 
-Proof-maker:
+Proof-maker Improvements: 
 *"use strict" errors out (currently commented out)
 *Distance subroutine is a bottleneck
-
-analyze model:
-*still calls python/numpy to solve matrix (bottle neck)
-
-Possible Improvements:
-*Add unit tests ( sum of probabilites = 1, energy before trial move = energy after rejection/restore step)
 *Optimize PDL matrix solving funtion
+*Rewrite much of the code into subroutines that can be aclled in main
 *Optimize code to run on cluster
 *Port (or rewrite) programs to python/numpy
 *Consolidate all programs into one program with streamlined input/output files
 *Expand abstraction to include more complex systems
 
+Analyze model:
+*still calls python/numpy to solve matrix (bottle neck)
+
+General Tweaks: 
+*Clean code/comments
+*Fine tune tempering
+*Other energy functions? 
+*other ways to generate more models per run?
 
 9. CHANGE LOG:
 
