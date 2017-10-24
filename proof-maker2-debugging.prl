@@ -651,7 +651,8 @@ if ( $proof==1 ) {
 
 adjancent_matrix_to_csv(); #testing
 energies_matrix_to_csv(); #testing
-#python_networkx(); #testing
+python_networkx(); #testing
+#import_from_python(); #testing 
 ################################################################
 for ( $n=0; $n<=$nsteps; $n++ ) { # MONTE CARLO LOOP
 ################################################################
@@ -1601,8 +1602,26 @@ sub energies_matrix_to_csv {
 sub python_networkx {
     my $pythonfile = "python_graph_script.py";
     system("python $pythonfile"); #system call to run python file
+
 };
 
+sub import_from_python {
+    my $filename = "python_to_perl";
+    my @data_dump = ();
+    my $consistency_flag = "";
+    my %subgraph_dictionary = ();
+    my @list_of_subgraph_states = ();
+
+    open(PYTHON_DATAFILE, $filename) or die("Unable to open file");
+    @data = <PYTHON_DATAFILE>;
+    close(PYTHON_DATAFILE, $filename) or die("Unable to close file");
+
+    print @data;
+    #open file to read in
+    #check error flag
+
+
+}
 # Caculates and prints script runtime in seconds
 my $end_time = time();
 my $run_time = $end_time - $start_time;
