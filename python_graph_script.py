@@ -16,6 +16,7 @@ from numpy import genfromtxt
 import numpy as np
 import matplotlib.pyplot as plt
 import networkx as nx
+import json
 
 # creates adjacency graph from adjacency matrix
 def adjacency_matrix_to_graph(ADJACENCY_MATRIX):
@@ -134,13 +135,15 @@ def export_to_file(DATA,DATA2,FLAG, FILENAME):
 	data2 = DATA2
 	flag = FLAG
 	filename = FILENAME
-	if data2:
-		file = open(filename,"w")
-		file.write("ERROR FLAG = %s\n\n" %flag)
-		file.write("%s\n\n" %data)
-		file.write("%s\n\n" %data2)
-		file.close()
 
+	file = open(filename,"w")
+	file.write("ERROR FLAG = %s\n\n" %flag)
+	file.write("%s\n\n" %data)
+	file.write("%s\n\n" %data2)
+	file.close()
+
+	with open('data.json', 'w') as outfile:
+		json.dump(data, outfile)
 #generate data for testing. under development
 #def test_module():
 

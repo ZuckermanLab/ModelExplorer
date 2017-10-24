@@ -1,5 +1,9 @@
 #!/usr/bin/perl -w
 use PDL; #Using PDL to solve matrix in perl - AG 2017
+use JSON;
+use utf8;
+use warnings;
+binmode STDOUT, ":utf8";
 
 # Monte Carlo program to explore 'model space' by using steady-state transport
 # properties as MC 'energy'.
@@ -1612,11 +1616,23 @@ sub import_from_python {
     my %subgraph_dictionary = ();
     my @list_of_subgraph_states = ();
 
-    open(PYTHON_DATAFILE, $filename) or die("Unable to open file");
-    @data = <PYTHON_DATAFILE>;
-    close(PYTHON_DATAFILE) or die("Unable to close file");
+    #open(PYTHON_DATAFILE, $filename) or die("Unable to open file");
+    #@data = <PYTHON_DATAFILE>;
+    #close(PYTHON_DATAFILE) or die("Unable to close file");
 
-    print @data;
+    #print @data;
+
+    my $json;
+    local $/; #Enable 'slurp' mode
+    open my $fh, "<", "data.json";
+    $json = <$fh>;
+    close $fh;
+    my $json_data = decode_json($json);
+    # Output to screen one of the values read
+    print "test:";
+    print $json_data->{'OF-No-So-Wb'}->{"OF-No-Sb-Wo"};
+
+
     #open file to read in
     #check error flag
 
