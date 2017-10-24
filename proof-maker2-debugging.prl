@@ -652,7 +652,7 @@ if ( $proof==1 ) {
 adjancent_matrix_to_csv(); #testing
 energies_matrix_to_csv(); #testing
 python_networkx(); #testing
-#import_from_python(); #testing 
+import_from_python(); #testing
 ################################################################
 for ( $n=0; $n<=$nsteps; $n++ ) { # MONTE CARLO LOOP
 ################################################################
@@ -1614,7 +1614,7 @@ sub import_from_python {
 
     open(PYTHON_DATAFILE, $filename) or die("Unable to open file");
     @data = <PYTHON_DATAFILE>;
-    close(PYTHON_DATAFILE, $filename) or die("Unable to close file");
+    close(PYTHON_DATAFILE) or die("Unable to close file");
 
     print @data;
     #open file to read in
