@@ -1653,24 +1653,35 @@ sub import_from_python {
 sub initial_model {
   my $connected_states_ref = $_[0];
   my %connected_states_deref = %{$connected_states_ref};
-  print "intializing state energies model...\n";
+  print "intializing state energies model with ref nodes E = 0 ...\n";
   foreach $reference_state ( keys %connected_states_deref) {
-     adjust_tied_energies2( $reference_state, $connected_states_ref);
+     adjust_tied_energies2( $reference_state, $connected_states_ref, 0.0);
   }
-
+  adjust_tied_energies2("OF-Ni-Sb-Wi",$connected_states_ref, 3.0 );#testing
+  adjust_tied_energies2("OF-Ni-Sb-Wi",$connected_states_ref, -2.0 );#testing
 }
 
 sub adjust_tied_energies2 {
   my $perturbed_state = $_[0];
   my $connected_states_ref = $_[1];
+  #my $energy_reference = $_[2];
+  my $energy_pertubation = $_[2];
   my %connected_states_deref = %{$connected_states_ref};
   print "perturbed_state: $perturbed_state \n";
   #search for connected subgraph of perturbed state
   #search 1st level for match
-  #search 2nd level for match
-  #set energy
-
-
+  foreach $key (keys %connected_states_deref){
+    foreach $key_in_key (keys %{$connected_states_deref{$key}}){
+      if ($key_in_key eq $perturbed_state){
+          #print "found perturbed_state! = $key_in_key\n";
+          foreach $key_in_key (keys %{$connected_states_deref{$key}}){
+            $previous_energy = $connected_states_deref{$key}{$key_in_key};
+            $new_energy = $previous_energy + $energy_pertubation;
+            print "state $key_in_key energy set from $previous_energy to $new_energy\n";
+          }
+      }
+    }
+  }
 }
 
 # Caculates and prints script runtime in seconds
