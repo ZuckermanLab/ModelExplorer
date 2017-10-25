@@ -1616,20 +1616,14 @@ sub python_networkx {
 
 sub import_from_python {
     my $filename = "python_to_perl";
-    my @data_dump = ();
-    my $consistency_flag = "";
-    my %subgraph_dictionary = ();
-    my @list_of_subgraph_states = ();
 
-    #open(PYTHON_DATAFILE, $filename) or die("Unable to open file");
-    #@data = <PYTHON_DATAFILE>;
-    #close(PYTHON_DATAFILE) or die("Unable to close file");
-
-    #print @data;
+    open my $fh2, "<", $filename or die "Could not open file '$filename' $!";
+    my $flag = <$fh2>; 
+    print "$flag\n";
 
     my $json;
     local $/; #Enable 'slurp' mode
-    open my $fh, "<", "data.json";
+    open my $fh, "<", "data.json" or die "Can't open file!";
     $json = <$fh>;
     close $fh;
     my $json_ref_data = decode_json($json);#returns REFERENCES
