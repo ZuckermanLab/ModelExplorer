@@ -1,8 +1,10 @@
 #!/usr/bin/perl -w
 use PDL; #Using PDL to solve matrix in perl - AG 2017
-use JSON;
+use JSON::XS qw( decode_json );
+use JSON::Parse 'parse_json';
 use utf8;
 use warnings;
+use Data::Dumper;
 binmode STDOUT, ":utf8";
 
 # Monte Carlo program to explore 'model space' by using steady-state transport
@@ -476,6 +478,12 @@ for ( $i=0; $i<$nstates; $i++ ) {
 print "\n";
 }
 
+adjancent_matrix_to_csv(); #testing
+energies_matrix_to_csv(); #testing
+python_networkx(); #testing
+import_from_python(); #testing
+
+
 # correct state energies based on tied energy values
 foreach $name ( @snames ) {
    adjust_tied_energies( $name );
@@ -653,10 +661,7 @@ if ( $proof==1 ) {
   print "\n";
 }
 
-adjancent_matrix_to_csv(); #testing
-energies_matrix_to_csv(); #testing
-python_networkx(); #testing
-import_from_python(); #testing
+
 ################################################################
 for ( $n=0; $n<=$nsteps; $n++ ) { # MONTE CARLO LOOP
 ################################################################
@@ -1627,17 +1632,47 @@ sub import_from_python {
     open my $fh, "<", "data.json";
     $json = <$fh>;
     close $fh;
-    my $json_data = decode_json($json);
-    # Output to screen one of the values read
-    print "test:";
-    print $json_data->{'OF-No-So-Wb'}->{"OF-No-Sb-Wo"};
+    my $json_ref_data = decode_json($json);#returns REFERENCES
+    my $connected_states_ref = $json_ref_data; #copy of hash references to be used in other sub routines
+    my %json_deref_data = %{$json_ref_data};#dereference
 
+    print "json dumper:\n";
+    print Dumper($json_ref_data)."\n";
+    print "json dereferenced:\n";
+    #traverse through hash of hashes
+    foreach $key (keys %json_deref_data){ #for each 1st level key in hash
+      print "key1: $key: \n";
+      foreach $key_in_key (keys %{$json_deref_data{$key}}){ #for each 2nd level key in hash. (must dereference 2nd level in perl)
+        print "\tkey2: $key_in_key \n";
+        print "\t\tvalue2: $json_deref_data{$key}{$key_in_key}\n"; #scalar value at 2nd level key
+      }
+    }
+    initial_model($connected_states_ref); #testing
+}
 
-    #open file to read in
-    #check error flag
+sub initial_model {
+  my $connected_states_ref = $_[0];
+  my %connected_states_deref = %{$connected_states_ref};
+  print "intializing state energies model...\n";
+  foreach $reference_state ( keys %connected_states_deref) {
+     adjust_tied_energies2( $reference_state, $connected_states_ref);
+  }
+
+}
+
+sub adjust_tied_energies2 {
+  my $perturbed_state = $_[0];
+  my $connected_states_ref = $_[1];
+  my %connected_states_deref = %{$connected_states_ref};
+  print "perturbed_state: $perturbed_state \n";
+  #search for connected subgraph of perturbed state
+  #search 1st level for match
+  #search 2nd level for match
+  #set energy
 
 
 }
+
 # Caculates and prints script runtime in seconds
 my $end_time = time();
 my $run_time = $end_time - $start_time;
