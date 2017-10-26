@@ -482,7 +482,7 @@ adjancent_matrix_to_csv(); #testing
 energies_matrix_to_csv(); #testing
 python_networkx(); #testing
 import_from_python(); #testing
-
+matrix_to_csv(\@state_relative_energy, "energy_testing.csv", $nstates, \@snames);
 
 # correct state energies based on tied energy values
 foreach $name ( @snames ) {
@@ -1580,6 +1580,38 @@ sub adjancent_matrix_to_csv {
   close(MATRIX);
 }
 
+# exports nxn matrix []
+sub matrix_to_csv {
+  my @matrix_to_export = @{$_[0]};
+  my $matrix_file_name = $_[1];
+  my $n_dim = $_[2];
+  my @n_labels = @{$_[3]};
+  #print Dumper(@matrix_to_export)."\n";
+  #print $matrix_file_name."\n";
+  #print $n_dim."\n";
+  #print Dumper(@n_labels)."\n";
+  open(MATRIX2, "> $matrix_file_name");
+
+  for ($i = 0; $i < $n_dim; $i++){
+      if ($i==0){
+        print MATRIX2 " , $n_labels[$i], ";
+      }
+      elsif ($i < $n_dim && $i >= 1){
+          print MATRIX2 "$n_labels[$i], ";
+      }
+    }
+  print MATRIX2 "\n";
+  for ($i = 0; $i < $n_dim; $i++){
+      print MATRIX2 "$n_labels[$i], ";
+    for ($j = 0; $j < $n_dim; $j++ ){
+        print MATRIX2 "$matrix_to_export[$i][$j], " ;
+    }
+  print MATRIX2 "\n";
+  }
+
+  close(MATRIX2);
+}
+
 sub energies_matrix_to_csv {
 
   my $energies_file ="energies_matrix.csv";
@@ -1618,7 +1650,7 @@ sub import_from_python {
     my $filename = "python_to_perl";
 
     open my $fh2, "<", $filename or die "Could not open file '$filename' $!";
-    my $flag = <$fh2>; 
+    my $flag = <$fh2>;
     print "$flag\n";
 
     my $json;
