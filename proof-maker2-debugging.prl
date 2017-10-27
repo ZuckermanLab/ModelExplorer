@@ -52,14 +52,14 @@ $proof = 1; # 1 if proofreading (additional states and transitions present compa
 $na_first = 1; # 1 if 'sodium' (N) is forced to bind first
 
 ### MONTE CARLO PARAMETERS ###
-$nsteps = 1e0; # number of Monte Carlo steps
+$nsteps = 1e4; # number of Monte Carlo steps
 $dprint = 1e0; # interval between prints
 $n_beta = 2e2; # number of MC steps after which beta (inverse temperature) changes
 $seed = 45459; # seed for random number generator
 srand($seed); # initializes random number generator ... should make MC repeatable
 $demax = 1.0; # maximum change in energy of state or transition state
 $alpha = 2.0; # exponent for toxin flow in MC 'energy' function which sets fitness of model
-$beta_init = 1e1; # initial value of beta = inverse temperature
+$beta_init = 1e100; # initial value of beta = inverse temperature
 $fbeta = 1e3; # max factor by which beta can change during the MC run, which includes 'tempering'
 $tol = 0.3; # fractional energy change deemed significant in tempering
 $pbeta_stay = 0.2; # probability to stay at same beta during tempering
@@ -478,16 +478,19 @@ for ( $i=0; $i<$nstates; $i++ ) {
 print "\n";
 }
 
-adjancent_matrix_to_csv(); #testing
-energies_matrix_to_csv(); #testing
+#adjancent_matrix_to_csv(); #testing
+#energies_matrix_to_csv(); #testing
+matrix_to_csv(\@state_adjacent_matrix, "adjacent_matrix.csv", $nstates, \@snames);
+matrix_to_csv(\@state_relative_energy, "energies_matrix.csv", $nstates, \@snames);
 python_networkx(); #testing
-import_from_python(); #testing
-matrix_to_csv(\@state_relative_energy, "energy_testing.csv", $nstates, \@snames);
-
+my $connected_states = import_from_python(); #testing
+print DEBUG "imported data from python:\n".Dumper($connected_states);
+initial_model($connected_states);
+print DEBUG "intial model:\n". Dumper(%energies);
 # correct state energies based on tied energy values
-foreach $name ( @snames ) {
-   adjust_tied_energies( $name );
-}
+#foreach $name ( @snames ) {
+   #adjust_tied_energies( $name );
+#}
 
 # overall initializations (prior to MC loop)
 @rates = ();
@@ -685,9 +688,14 @@ if ( $n>0 ) {
       $delta_e = 2.0*$demax*( rand() - 0.5 ); # amount by which energy of state to be perturbed
       $old_energy = $energies{$tmpstate}; # keep track of perturbed state's energy
       $new_energy = $old_energy + $delta_e; # perturb energy
+      print DEBUG "before trial move: $tmpstate \n" . Dumper(%energies);
       $energies{$tmpstate} = $new_energy; # set state's energy to new energy
+      print DEBUG "after tmpstate trial move:\n" . Dumper(%energies);
       print MCFILE "Perturb state $tmpstate by delta_e=$delta_e from $old_energy to $new_energy\n";
-      adjust_tied_energies( $tmpstate ); # adjust other state energies for constraints
+      #adjust_tied_energies( $tmpstate ); # adjust other state energies for constraints
+
+      adjust_tied_energies2( $tmpstate, $connected_states, $delta_e);
+      print DEBUG "after trial move adjust_tied_energies2:\n" . Dumper(%energies);
    }
    else { # trial move is perturbation to transition-state (energy barrier) energy
       $state_move = 0;
@@ -912,7 +920,11 @@ if ( $n>0 ) { # check if move accepted
       if ( $state_move == 1 ) { # state energy was changed - change back
          $energies{$tmpstate} = $old_energy;
          print MCFILE "State rejection: Change back state $tmpstate to $energies{$tmpstate}\n";
-         adjust_tied_energies( $tmpstate ); # adjust other state energies for constraints
+         #adjust_tied_energies( $tmpstate ); # adjust other state energies for constraints
+         print DEBUG "Rejection! before restoration:\n".Dumper(%energies);
+         adjust_tied_energies2( $tmpstate, $connected_states, (-1.0*$delta_e));
+         print DEBUG "Rejection! after restoration: \n".Dumper(%energies);
+
       }
       else { # transition state energy was changed - change back
          $ebars{$bartmp} = $old_energy;
@@ -1662,18 +1674,19 @@ sub import_from_python {
     my $connected_states_ref = $json_ref_data; #copy of hash references to be used in other sub routines
     my %json_deref_data = %{$json_ref_data};#dereference
 
-    print "json dumper:\n";
-    print Dumper($json_ref_data)."\n";
-    print "json dereferenced:\n";
+    #print "json dumper:\n";
+    #print Dumper($json_ref_data)."\n";
+    #print "json dereferenced:\n";
     #traverse through hash of hashes
-    foreach $key (keys %json_deref_data){ #for each 1st level key in hash
-      print "key1: $key: \n";
-      foreach $key_in_key (keys %{$json_deref_data{$key}}){ #for each 2nd level key in hash. (must dereference 2nd level in perl)
-        print "\tkey2: $key_in_key \n";
-        print "\t\tvalue2: $json_deref_data{$key}{$key_in_key}\n"; #scalar value at 2nd level key
-      }
-    }
-    initial_model($connected_states_ref); #testing
+    #foreach $key (keys %json_deref_data){ #for each 1st level key in hash
+    #  print "key1: $key: \n";
+      #foreach $key_in_key (keys %{$json_deref_data{$key}}){ #for each 2nd level key in hash. (must dereference 2nd level in perl)
+        #print "\tkey2: $key_in_key \n";
+        #print "\t\tvalue2: $json_deref_data{$key}{$key_in_key}\n"; #scalar value at 2nd level key
+    #  }
+    #}
+    #initial_model($connected_states_ref); #testing
+    return $connected_states_ref;
 }
 
 sub initial_model {
@@ -1683,17 +1696,19 @@ sub initial_model {
   foreach $reference_state ( keys %connected_states_deref) {
      adjust_tied_energies2( $reference_state, $connected_states_ref, 0.0);
   }
-  adjust_tied_energies2("OF-Ni-Sb-Wi",$connected_states_ref, 3.0 );#testing
-  adjust_tied_energies2("OF-Ni-Sb-Wi",$connected_states_ref, -2.0 );#testing
+  #adjust_tied_energies2("OF-Ni-Sb-Wi",$connected_states_ref, 3.0 );#testing
+  #adjust_tied_energies2("OF-Ni-Sb-Wi",$connected_states_ref, -2.0 );#testing
 }
 
-sub adjust_tied_energies2 {
+
+sub adjust_tied_energies2 { # takes in perturbed_state, connected_states_ref, and energy_pertubation
   my $perturbed_state = $_[0];
   my $connected_states_ref = $_[1];
   #my $energy_reference = $_[2];
   my $energy_pertubation = $_[2];
   my %connected_states_deref = %{$connected_states_ref};
   print "perturbed_state: $perturbed_state \n";
+  print DEBUG "perturbed_state: $perturbed_state \n";
   #search for connected subgraph of perturbed state
   #search 1st level for match
   foreach $key (keys %connected_states_deref){
@@ -1703,7 +1718,10 @@ sub adjust_tied_energies2 {
           foreach $key_in_key (keys %{$connected_states_deref{$key}}){
             $previous_energy = $connected_states_deref{$key}{$key_in_key};
             $new_energy = $previous_energy + $energy_pertubation;
+            $connected_states_deref{$key}{$key_in_key} = $new_energy;
+            $energies{$key_in_key} = $new_energy;
             print "state $key_in_key energy set from $previous_energy to $new_energy\n";
+            print DEBUG "state $key_in_key energy set from $previous_energy to $new_energy\n";
           }
       }
     }
