@@ -4,11 +4,11 @@ README.txt written by August George with help from Dr. Zuckerman.
 Proof-maker.prl written by Dr. Zuckerman and updated/modified by August George.
 Analyze-model.prl written by Dr. Zuckerman and updated/modified by August George. 
 
-Last updated: COtober 9, 2017 - Added tied state adjacency matrix, relative energies matrix, and (empty) debug subroutine and file output. ALSO NEED TO CHANGE BARRIERS/TRANSITIONS
+Last updated: Nov. 1, 2017 - energy bug is fixed! ALSO NEED TO CHANGE BARRIERS/TRANSITIONS
 
-!BUG! - Energy state not restored to last accepted state after rejection. Need to fix and then add unit test. Currently working on algorithm that will check the conistency of each cycle (sum E = 0 around a cycle) in the graphs created by the adjacency matrix. Will then need to adjust energies based on the direct (and indirect) connections provided by these graphs. 
+!BUG! - energy bug is fixed!. Now checking barrier energies for similar bug... Energies are properly restored after rejection step, but might still have incorrect groupings.
 
-Readme TODO: METHODOLOGY,more assumptions?, 
+Readme TODO: METHODOLOGY,more assumptions?, update with bug fix and improvements
 
 TABLE OF CONTENTS:
 1. INTRODUCTION 
@@ -46,6 +46,8 @@ All programs use Perl 5 and were tested/run on *nix machines.
 
 
 3. INPUT/OUTPUT:
+
+Now using config file! Will update readme soon...
 
 Proof-maker:
 *Inputs: None. Parameters (i.e. number of monte carlo steps) adjusted by user in program file. 
@@ -92,6 +94,38 @@ which are useful...
 **Models_from_run: folder which contains energies-x and barriers-x
 ***Energies-x: file that stores state energy values at model (monte carlo) number 'x'.
 ***Barriers-x: file stores barrier energy values at model (monte carlo) number 'x'.
+
+
+DEFAULT PARAMATERS:
+
+### Simulation type
+$proof = 1; # 1 if proofreading (additional states and transitions present compared to simple transport)
+$na_first = 1; # 1 if 'sodium' (N) is forced to bind first
+
+### MONTE CARLO PARAMETERS ###
+$nsteps = 1e2; # number of Monte Carlo steps
+$dprint = 1e0; # interval between prints
+$n_beta = 2e2; # number of MC steps after which beta (inverse temperature) changes
+$seed = 456789; # seed for random number generator
+
+$demax = 1.0; # maximum change in energy of state or transition state
+$alpha = 2.0; # exponent for toxin flow in MC 'energy' function which sets fitness of model
+$beta_init = 1e1; # initial value of beta = inverse temperature
+$fbeta = 1e3; # max factor by which beta can change during the MC run, which includes 'tempering'
+$tol = 0.3; # fractional energy change deemed significant in tempering
+$pbeta_stay = 0.2; # probability to stay at same beta during tempering
+#$beta_early = 1e1;  # alternate between two values
+#$beta_late = 1e3;
+### PHYSICAL PARAMETERS (everything in kT units, effectively)
+$dmu_N = -4; # chemical potential change (mu_i - mu_o) of driving "ion" N (e.g., sodium)
+$dmu_S = 2; # chemical potential change of "substrate" S (e.g., sugar)
+$dmu_W = 2; # chemical potential change of wrong "substrate" W (e.g., toxin)
+$fmu_N = 0.5; # fraction of dmu attributed to outside - i.e., log of concnetration increase relative to equil
+$fmu_S = 0.5; # fraction of dmu attributed to outside - i.e., log of concnetration increase relative to equil
+$fmu_W = 0.5; # fraction of dmu attributed to outside - i.e., log of concnetration increase relative to equil
+$ebarslow = 99; # minimum energy value of barrier height (above max of two states) for slow transitions
+$kzero = 1e-3; # rate constant prefactor: full first-order rate constant = k_ij = kzero * exp( - barrier_energy )
+$ebump = 1.0;  # amount by which initial transition-state (barrier) energy exceeds max of pair
 
 
 4. ASSUMPTIONS(in progress):
@@ -230,6 +264,8 @@ General Tweaks:
 *other ways to generate more models per run?
 
 9. CHANGE LOG:
+
+Update 3 (2017-11-1): "State energies not restored after rejection" bug has been fixed using new python script. Issue was the equivalent states were not all completely connected. Python creates connected state graphs based on adjacency matrix, checks cycle for consistency using relative energies, and creates new connected states dictionary (of dictionary) containing state and connected states with relative energies (i.e. energy landscape). Config file functionality is added.
 
 Update 2 (2017-08-13): Perl PDL used in place of Python/Numpy to elimate system IO call slow down in proof-maker. Uploaded as proof-maker2.prl (will keep original for historical purposes). Uploaded analyze-model.prl. Added more to README. 
 
