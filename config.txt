@@ -1,0 +1,7 @@
+#proof-maker config file (using config::simple)
+#Defaults are listed in readme
+#format 'keyname value' with space as delimiter.
+#no comments on same line as key/value pair
+
+nsteps 1e1
+beta_init 100e100

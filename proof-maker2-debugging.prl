@@ -1,11 +1,12 @@
 #!/usr/bin/perl -w
 use PDL; #Using PDL to solve matrix in perl - AG 2017
-use JSON::XS qw( decode_json );
-use JSON::Parse 'parse_json';
+use JSON;
 use utf8;
 use warnings;
-use Data::Dumper;
-binmode STDOUT, ":utf8";
+use Data::Dumper; #helpful for debugging
+#use feature 'state';
+use Config::Simple;
+#use strict; #errors out
 
 # Monte Carlo program to explore 'model space' by using steady-state transport
 # properties as MC 'energy'.
@@ -13,14 +14,16 @@ binmode STDOUT, ":utf8";
 # Additional updates by August George, Summer 2017
 # Please see README for more information
 
-# IN PROGRESS: Convert adjacency graph into submatrices (in python), check consistency,
-# export adjacency submatrices to perl. Consolidate subroutines.
+# IN PROGRESS: Checked that barrier energies properly reset after rejection.
+# Checking if equivalent barriers are corrent.
+# Added config file
 
-# UPDATES: Added adjacency and relative energy matrix. Subroutine to convert
-# adjacency matrix to .csv. Subroutine to convert .csv matrix to graph (using python).
+# UPDATES:
+# "Energies not properly restored after rejection" bug fixed. States weren't
+# properly connected. Python script is now used to create correct connections.
 
 # BUGS:
-# Energies not properly restored after reject/restore step. Also need to check barriers
+# Need to check barrier/transitions for propery connections (similar to previous state energy bug)
 #"use strict" errors out... "Variable name" requires explicit package name.
 
 # USAGE: ./proof-maker.prl > log  (i.e., there is no input file)
@@ -34,6 +37,7 @@ binmode STDOUT, ":utf8";
 # Improve program performance (distance subroutine botleneck, PDL matrix solver)
 # Improve documentation (code comments and readme)
 # Rewrite code into subroutines
+# Use config file
 # Add unit tests
 
 # UNIT TESTS TO ADD:
@@ -47,32 +51,26 @@ binmode STDOUT, ":utf8";
 # To get estimated runtime
 my $start_time = time(); # for basic performance testing
 
+#testing config file
+=pod
 ### Simulation type
 $proof = 1; # 1 if proofreading (additional states and transitions present compared to simple transport)
 $na_first = 1; # 1 if 'sodium' (N) is forced to bind first
 
 ### MONTE CARLO PARAMETERS ###
-$nsteps = 1e4; # number of Monte Carlo steps
+$nsteps = 1e2; # number of Monte Carlo steps
 $dprint = 1e0; # interval between prints
 $n_beta = 2e2; # number of MC steps after which beta (inverse temperature) changes
-$seed = 45459; # seed for random number generator
-srand($seed); # initializes random number generator ... should make MC repeatable
+$seed = 456789; # seed for random number generator
+
 $demax = 1.0; # maximum change in energy of state or transition state
 $alpha = 2.0; # exponent for toxin flow in MC 'energy' function which sets fitness of model
-$beta_init = 1e100; # initial value of beta = inverse temperature
+$beta_init = 1e1; # initial value of beta = inverse temperature
 $fbeta = 1e3; # max factor by which beta can change during the MC run, which includes 'tempering'
 $tol = 0.3; # fractional energy change deemed significant in tempering
 $pbeta_stay = 0.2; # probability to stay at same beta during tempering
 #$beta_early = 1e1;  # alternate between two values
 #$beta_late = 1e3;
-print "Simulation type: proof = $proof  na_first = $na_first\n";
-print "MC Protocol: Now using flow sflow* |sflow/wflow|**alpha\n";
-print "MC Parameters: $nsteps steps    seed = $seed    demax = $demax    alpha = $alpha\n";
-printf "MC Parameters: beta_init = %4.1e    max beta factor = %4.1e    adjusts every %d MC steps\n\n", $beta_init, $fbeta, $n_beta;
-print "MC Parameters: pbeta_stay = $pbeta_stay    tol = $tol\n";
-#printf "MC Parameters: beta_early = %4.1e    beta_late = %4.1e   alternates every %d MC steps\n\n", $beta_early, $beta_late, $n_beta;
-
-
 ### PHYSICAL PARAMETERS (everything in kT units, effectively)
 $dmu_N = -4; # chemical potential change (mu_i - mu_o) of driving "ion" N (e.g., sodium)
 $dmu_S = 2; # chemical potential change of "substrate" S (e.g., sugar)
@@ -80,13 +78,61 @@ $dmu_W = 2; # chemical potential change of wrong "substrate" W (e.g., toxin)
 $fmu_N = 0.5; # fraction of dmu attributed to outside - i.e., log of concnetration increase relative to equil
 $fmu_S = 0.5; # fraction of dmu attributed to outside - i.e., log of concnetration increase relative to equil
 $fmu_W = 0.5; # fraction of dmu attributed to outside - i.e., log of concnetration increase relative to equil
-if ( $proof==1 ) {$dg_SW = 2; } # amount by which binding energy of W exceeds that of S
 $ebarslow = 99; # minimum energy value of barrier height (above max of two states) for slow transitions
 $kzero = 1e-3; # rate constant prefactor: full first-order rate constant = k_ij = kzero * exp( - barrier_energy )
 $ebump = 1.0;  # amount by which initial transition-state (barrier) energy exceeds max of pair
+
+=cut
+
+$tmpfile = "prob_ss.dat";
+$mcfile = "mc_out.dat";
+$kfile = "rate_matrix.tmp";
+$datfile = "evolver_rates.dat";
+$flowfile = "evolver_flows.dat";
+$debugfile = "debug";
+open(MCFILE, "> $mcfile");
+open(DATA, "> $datfile");
+open(FLOWS, "> $flowfile");
+open(DEBUG, "> $debugfile");
+
+%parameters = load_config_settings("config.txt");
+
+#temporary solution. will be creating modules
+$proof = $parameters{"proof"}; # 1 if proofreading (additional states and transitions present compared to simple transport)
+$na_first = $parameters{"na_first"}; # 1 if 'sodium' (N) is forced to bind first
+$nsteps = $parameters{"nsteps"}; # number of Monte Carlo steps
+$dprint = $parameters{"dprint"}; # interval between prints
+$n_beta = $parameters{"n_beta"}; # number of MC steps after which beta (inverse temperature) changes
+$seed = $parameters{"seed"}; # seed for random number generator
+$demax = $parameters{"demax"}; # maximum change in energy of state or transition state
+$alpha = $parameters{"alpha"}; # exponent for toxin flow in MC 'energy' function which sets fitness of model
+$beta_init = $parameters{"beta_init"}; # initial value of beta = inverse temperature
+$fbeta = $parameters{"fbeta"}; # max factor by which beta can change during the MC run, which includes 'tempering'
+$tol = $parameters{"tol"}; # fractional energy change deemed significant in tempering
+$pbeta_stay = $parameters{"pbeta_stay"}; # probability to stay at same beta during tempering
+$dmu_N = $parameters{"dmu_N"}; # chemical potential change (mu_i - mu_o) of driving "ion" N (e.g., sodium)
+$dmu_S = $parameters{"dmu_S"}; # chemical potential change of "substrate" S (e.g., sugar)
+$dmu_W = $parameters{"dmu_W"}; # chemical potential change of wrong "substrate" W (e.g., toxin)
+$fmu_N = $parameters{"fmu_N"}; # fraction of dmu attributed to outside - i.e., log of concnetration increase relative to equil
+$fmu_S = $parameters{"fmu_S"}; # fraction of dmu attributed to outside - i.e., log of concnetration increase relative to equil
+$fmu_W = $parameters{"fmu_W"}; # fraction of dmu attributed to outside - i.e., log of concnetration increase relative to equil
+$ebarslow = $parameters{"ebarslow"}; # minimum energy value of barrier height (above max of two states) for slow transitions
+$kzero = $parameters{"kzero"}; # rate constant prefactor: full first-order rate constant = k_ij = kzero * exp( - barrier_energy )
+$ebump = $parameters{"ebump"};  # amount by which initial transition-state (barrier) energy exceeds max of pair
+
+
+srand($seed); # initializes random number generator ... should make MC repeatable
+if ( $proof==1 ) {$dg_SW = 2; } # amount by which binding energy of W exceeds that of S
+
+print "Simulation type: proof = $proof  na_first = $na_first\n";
+print "MC Protocol: Now using flow sflow* |sflow/wflow|**alpha\n";
+print "MC Parameters: $nsteps steps    seed = $seed    demax = $demax    alpha = $alpha\n";
+printf "MC Parameters: beta_init = %4.1e    max beta factor = %4.1e    adjusts every %d MC steps\n\n", $beta_init, $fbeta, $n_beta;
+print "MC Parameters: pbeta_stay = $pbeta_stay    tol = $tol\n";
+#printf "MC Parameters: beta_early = %4.1e    beta_late = %4.1e   alternates every %d MC steps\n\n", $beta_early, $beta_late, $n_beta;
 print "Physical params: dmu_N = $dmu_N    dmu_S = $dmu_S    ebarslow = $ebarslow    kzero = $kzero    ebump = $ebump";
+print "\nPhysical params: fmu_N = $fmu_N    fmu_S = $fmu_S    fmu_W = $fmu_W ";
 if ( $proof==1 ) { print "    dg_SW = $dg_SW"; }
-print "\nPhysical params: fmu_N = $fmu_N    fmu_S = $fmu_S    fmu_W = $fmu_W\n";
 print "\n\n";
 
 # units (cycles) which combinatorially form states: state names fully describe states
@@ -186,16 +232,7 @@ else { $fixed_states{"OF-No-So"} = 0.0;  } # start/reference state: nothing boun
            );
 
 # create output files
-$tmpfile = "prob_ss.dat";
-$mcfile = "mc_out.dat";
-$kfile = "rate_matrix.tmp";
-$datfile = "evolver_rates.dat";
-$flowfile = "evolver_flows.dat";
-$debugfile = "debug";
-open(MCFILE, "> $mcfile");
-open(DATA, "> $datfile");
-open(FLOWS, "> $flowfile");
-open(DEBUG, "> $debugfile");
+
 $n_units = @state_bases; # the number of units/modules
 print "\nUNITS:\n";
 print "Number of units/cycles/modules is $n_units\n\n";
@@ -478,19 +515,14 @@ for ( $i=0; $i<$nstates; $i++ ) {
 print "\n";
 }
 
-#adjancent_matrix_to_csv(); #testing
-#energies_matrix_to_csv(); #testing
+# creates .csv from adjacency matrix and relative energies matrix
 matrix_to_csv(\@state_adjacent_matrix, "adjacent_matrix.csv", $nstates, \@snames);
 matrix_to_csv(\@state_relative_energy, "energies_matrix.csv", $nstates, \@snames);
-python_networkx(); #testing
-my $connected_states = import_from_python(); #testing
-print DEBUG "imported data from python:\n".Dumper($connected_states);
+
+# uses python script to generate (from graph) connected states/energies and initialize MC model
+python_networkx();
+my $connected_states = import_from_python();
 initial_model($connected_states);
-print DEBUG "intial model:\n". Dumper(%energies);
-# correct state energies based on tied energy values
-#foreach $name ( @snames ) {
-   #adjust_tied_energies( $name );
-#}
 
 # overall initializations (prior to MC loop)
 @rates = ();
@@ -536,6 +568,8 @@ foreach $tlist ( @tied_states_tr ) { # now all are two element arrays
    $aname = $$tlist[0]; $bname = $$tlist[1];
    print "TIED PAIR for TRANSITION: $aname  $bname\n";
 }
+
+# assign energies for barriers
 foreach $pair ( @barkeys ) { # loop over all barriers
    adjust_tied_barriers( $pair, $ebars{$pair} );
 }
@@ -616,10 +650,11 @@ for ( $i=0; $i<@barkeys; $i++ ) {
 # Information for maintaining equivalent barrier heights for equivalent transitions
 # Makes lists of equivalent barriers (transitions)
 @equiv_lists_tr = @{ equiv_list_from_pairs( \@equiv_transns ) };
-#print "\nLists of equivalent transitions\n";
-#foreach $list ( @equiv_lists_tr ) {
-  #print "Equiv list: @{$list}\n";
-#}
+
+print "\nLists of equivalent transitions\n";
+foreach $list ( @equiv_lists_tr ) {
+  print "Equiv list: @{$list}\n";
+}
 
 # Put the same info into more useful hashes
 ( $ref_one, $ref_two ) = equiv_hashes_from_list ( \@equiv_lists_tr );
@@ -628,12 +663,14 @@ for ( $i=0; $i<@barkeys; $i++ ) {
 
 @samekeys_tr = keys ( %same_bar );
 @dups_tr = (); # list of all transitions equivalent to some other
+
 foreach $key ( @samekeys_tr ) {
   foreach $x ( @{$same_bar{$key}} ) {
      print "$x is a dup of $key\n";
      push @dups_tr, $x;
   }
 }
+#print DEBUG "dups_tr:\n".Dumper(@dups_tr);
 print "DUPLICATES of other transitions: @dups_tr\n";
 print "\n";
 
@@ -688,14 +725,9 @@ if ( $n>0 ) {
       $delta_e = 2.0*$demax*( rand() - 0.5 ); # amount by which energy of state to be perturbed
       $old_energy = $energies{$tmpstate}; # keep track of perturbed state's energy
       $new_energy = $old_energy + $delta_e; # perturb energy
-      print DEBUG "before trial move: $tmpstate \n" . Dumper(%energies);
       $energies{$tmpstate} = $new_energy; # set state's energy to new energy
-      print DEBUG "after tmpstate trial move:\n" . Dumper(%energies);
       print MCFILE "Perturb state $tmpstate by delta_e=$delta_e from $old_energy to $new_energy\n";
-      #adjust_tied_energies( $tmpstate ); # adjust other state energies for constraints
-
       adjust_tied_energies2( $tmpstate, $connected_states, $delta_e);
-      print DEBUG "after trial move adjust_tied_energies2:\n" . Dumper(%energies);
    }
    else { # trial move is perturbation to transition-state (energy barrier) energy
       $state_move = 0;
@@ -818,7 +850,7 @@ for ( $i=0; $i<@states; $i++ ) {
 close(KFILE);
 
 
-# Call pdl matrix solver function (used instead of python - AG 2017)
+# Call pdl matrix solver function (used instead of python for better performance)
 call_pdl( \@alt_matrix, $tmpfile);
 
 
@@ -920,10 +952,7 @@ if ( $n>0 ) { # check if move accepted
       if ( $state_move == 1 ) { # state energy was changed - change back
          $energies{$tmpstate} = $old_energy;
          print MCFILE "State rejection: Change back state $tmpstate to $energies{$tmpstate}\n";
-         #adjust_tied_energies( $tmpstate ); # adjust other state energies for constraints
-         print DEBUG "Rejection! before restoration:\n".Dumper(%energies);
-         adjust_tied_energies2( $tmpstate, $connected_states, (-1.0*$delta_e));
-         print DEBUG "Rejection! after restoration: \n".Dumper(%energies);
+         adjust_tied_energies2( $tmpstate, $connected_states, (-1.0*$delta_e)); #note: negative change in energy used to reset
 
       }
       else { # transition state energy was changed - change back
@@ -1050,174 +1079,164 @@ close(DEBUG);
 
 #### Subroutines
 sub initialize_barriers { # initialize barrier energies and edges array
-my $i; my $j; my $a_name; my $b_name; my $pairname;
-my $energy_a; my $energy_b; my $emax;
-$i=0;
-foreach $sa (@states) {
-   $j=0;
-   #$diag[$i] = 0;
-   foreach $sb (@states) {
-      $a_name = $$sa[0];
-      $b_name = $$sb[0];
-      if ( $i<$j ) {
-          $pairname = $a_name."_AND_".$b_name;
-      }
-      else         { # pairname INDEPENDENT of order
-          $pairname = $b_name."_AND_".$a_name;
-      }
-      $d = distance( \@$sa, \@$sb, \@unit_lengths ); # passing references
-      if ( $d==1 ) { # transitions only allowed between 'nearest-neighbor' states
-         $energy_a = $energies{$a_name};
-         $energy_b = $energies{$b_name};
-         $emax = 0.5*(  $energy_a + $energy_b + abs( $energy_a - $energy_b ));
-         #if ( $n==0 ) { # initialization step of MC - set transition state energies
-            $edges[$i][$j] = 1;
-            #print "MC initialization ...\n";
-            #print "states: $$sa[0]  $$sb[0]    energies: $energy_a  $energy_b  max=$emax\n";
-            if ( $i<$j ) { $ebars{$pairname} = $ebump; } # initial barrier energy
-            edge_checker_in( $a_name, $b_name ); # find edges transporting S, for MC energy
-            edge_checker_ion( $a_name, $b_name ); # find edges transporting N
-            if ( $proof==1 ) {
-               edge_checker_tox( $a_name, $b_name ); # find edges transporting W, for MC energy
-            }
-            if ( $i<$j && edge_checker_slow_rev( $a_name, $b_name ) == 1 ) { # find edges with slow transitions
-               # Note subroutine depends on order, but pairname does not - so both orders must be checked
-               print "Slow pair found: $pairname\n";
-               push @slowpairs, $pairname;
-               $ebars{$pairname} = $ebump + $ebarslow;
-            }
-         #}
-      }
-      else { # distance not 1, so rate is zero
-         $edges[$i][$j] = 0;
-      }
-      $j++;
-   }
-   $i++;
-}
+  my $i; my $j; my $a_name; my $b_name; my $pairname;
+  my $energy_a; my $energy_b; my $emax;
+  $i=0;
+  foreach $sa (@states) {
+     $j=0;
+     #$diag[$i] = 0;
+     foreach $sb (@states) {
+        $a_name = $$sa[0];
+        $b_name = $$sb[0];
+        if ( $i<$j ) {
+            $pairname = $a_name."_AND_".$b_name;
+        }
+        else         { # pairname INDEPENDENT of order
+            $pairname = $b_name."_AND_".$a_name;
+        }
+        $d = distance( \@$sa, \@$sb, \@unit_lengths ); # passing references
+        if ( $d==1 ) { # transitions only allowed between 'nearest-neighbor' states
+           $energy_a = $energies{$a_name};
+           $energy_b = $energies{$b_name};
+           $emax = 0.5*(  $energy_a + $energy_b + abs( $energy_a - $energy_b ));
+           #if ( $n==0 ) { # initialization step of MC - set transition state energies
+              $edges[$i][$j] = 1;
+              #print "MC initialization ...\n";
+              #print "states: $$sa[0]  $$sb[0]    energies: $energy_a  $energy_b  max=$emax\n";
+              if ( $i<$j ) { $ebars{$pairname} = $ebump; } # initial barrier energy
+              edge_checker_in( $a_name, $b_name ); # find edges transporting S, for MC energy
+              edge_checker_ion( $a_name, $b_name ); # find edges transporting N
+              if ( $proof==1 ) {
+                 edge_checker_tox( $a_name, $b_name ); # find edges transporting W, for MC energy
+              }
+              if ( $i<$j && edge_checker_slow_rev( $a_name, $b_name ) == 1 ) { # find edges with slow transitions
+                 # Note subroutine depends on order, but pairname does not - so both orders must be checked
+                 print "Slow pair found: $pairname\n";
+                 push @slowpairs, $pairname;
+                 $ebars{$pairname} = $ebump + $ebarslow;
+              }
+           #}
+        }
+        else { # distance not 1, so rate is zero
+           $edges[$i][$j] = 0;
+        }
+        $j++;
+     }
+     $i++;
+  }
 }
 
 # Use pdl to solve matrix instead of python/numpy -7/18/17 AG
 # Solves [A][X] = [B] my multiplying both side by [A] inverse matrix.
 # ([A]^-1)x[X] = ([A]^-1)x[B] => [I][X] = ([A]^-1)x[B] where [I] is the identity matrix
-
 sub call_pdl { # generate file for Python solution
 my ( $ref, $tmpfile )  = @_;
 my @alt_matrix = @{ $ref }; # dereferencing and copying each array
 my $n_alt = @alt_matrix;
-my $i;
-my $j;
+my $i; my $j;
 my $a = zeros($n_alt,$n_alt); # initializes [A] matrix to all zeros
 my $b = zeros(1,$n_alt); # initializes [B] matrix to all zeros
 my $c = zeros($n_alt,$n_alt); # initilizes [x] matrix to all zeros
-
 set($b,0,($n_alt-1),1); # sets bottom (last) B matrix value to 1
-
 
 # sets values of A matrix by iterating through loop
 for ( $i=0; $i<$n_alt; $i++ ) {
-   for ( $j=0; $j<$n_alt; $j++ ) {
-      # (1) Need diagonal as negative sum of row of K
-      # (2) Need transpose K^T
-      # (3) Need sum of probabilities constraint instead of one row of K^T
-      set($a,$j,$i,$alt_matrix[$j][$i]);
-      }
-   }
-
+     for ( $j=0; $j<$n_alt; $j++ ) {
+          #(1) Need diagonal as negative sum of row of K
+          #(2) Need transpose K^T
+          #(3) Need sum of probabilities constraint instead of one row of K^T
+          set($a,$j,$i,$alt_matrix[$j][$i]);
+     }
+}
 $c = (inv($a)) x $b; # computes solutions matrix [X]
-
-# prints to temporary files
-open my $fh2, ">",$tmpfile or die;
+open my $fh2, ">",$tmpfile or die; # Open/close file and print to temporary files
 print $fh2 $c;
 close $fh2;
-
 }
 
 sub equiv_hashes_from_list {
-my ( $ref )  = @_;
-my @equiv_lists = @{ $ref }; # dereferencing and copying each array
-my $ilist = 0; my $list; my $tmpkey; my $tmplen; my @tmplist; my $i; my $tmpstate;
-my %equiv_alt; my %samep_alt;
+  my ( $ref )  = @_;
+  my @equiv_lists = @{ $ref }; # dereferencing and copying each array
+  my $ilist = 0; my $list; my $tmpkey; my $tmplen; my @tmplist; my $i; my $tmpstate;
+  my %equiv_alt; my %samep_alt;
 
-foreach $list ( @equiv_lists ) {
-   #print "NEW Equiv array $ilist = @{$equiv_lists[$ilist]}\n";
-   $tmpkey = ${$equiv_lists[$ilist]}[0];
-   $tmplen = @{$equiv_lists[$ilist]};
-   #print "... Making a state referenced to $tmpkey with $tmplen other states\n";
-   @tmplist = ();
-   for ( $i=1; $i<$tmplen; $i++ ) {
-      $tmpstate =  ${$equiv_lists[$ilist]}[$i];
-      push @tmplist, $tmpstate;
-      $equiv_alt{$tmpstate} = $tmpkey; # indicates which key a given state is referenced to
-   }
-   $samep_alt{$tmpkey} = [@tmplist];   # hash giving all states referenced to a key
-   $ilist ++;
+  foreach $list ( @equiv_lists ) {
+     #print "NEW Equiv array $ilist = @{$equiv_lists[$ilist]}\n";
+     $tmpkey = ${$equiv_lists[$ilist]}[0];
+     $tmplen = @{$equiv_lists[$ilist]};
+     #print "... Making a state referenced to $tmpkey with $tmplen other states\n";
+     @tmplist = ();
+     for ( $i=1; $i<$tmplen; $i++ ) {
+        $tmpstate =  ${$equiv_lists[$ilist]}[$i];
+        push @tmplist, $tmpstate;
+        $equiv_alt{$tmpstate} = $tmpkey; # indicates which key a given state is referenced to
+     }
+     $samep_alt{$tmpkey} = [@tmplist];   # hash giving all states referenced to a key
+     $ilist ++;
+  }
+  return (\%equiv_alt, \%samep_alt);
 }
-return (\%equiv_alt, \%samep_alt);
-}
-
 
 sub equiv_list_from_pairs {
-# From tied states, construct lists with same populations (second version)
-my ( $ref )  = @_;
-my @tied_states = @{ $ref }; # dereferencing and copying each array
+  # From tied states, construct lists with same populations (second version)
+  my ( $ref )  = @_;
+  my @tied_states = @{ $ref }; # dereferencing and copying each array
 
-#print "\nConstruct lists with same populations - second version\n";
-my @equiv_lists = (); # this should be array of arrays of equivalent states
-my @already = (); # list of tied pairs already linked for equivlaent states
-my $ibig = 0;
-my @tmplist;
-my $aname; my $bname; my $ilist; my $not_in; my $ial; my $list; my $tlist;
-foreach $tlist ( @tied_states ) { # now all are two element arrays
-   @tmplist = ();
-   $aname = $$tlist[0]; $bname = $$tlist[1];
-   #print "TIED PAIR: $aname  $bname\n";
-   $ilist = 0;
-   # possible both states already in a list even if tied pair not yet considered due to 'loops'
-   $not_in = 1;
-   foreach $list ( @equiv_lists ) {
-      if ( grep { $aname eq $_ } @{$equiv_lists[$ilist]} ) { # just need to find one element
-         # because both elements will be listed due to loop
-         #print "ITEMS $aname $bname FOUND in existing list\n";
-         $not_in = 0;
-      }
-      $ilist ++;
-   }
-   if ( $not_in==1 ) {
-   unless ( grep { $ibig eq $_ } @already ) { ################
-      #print "NOW CHECKING TIED PAIR $ibig: $aname  $bname\n";
-      push @tmplist, ( $aname, $bname );
-      push @already, $ibig;
-      $ial = 0; # index for tied pairs
-      foreach $list ( @tied_states ) { # loop to find other pairs matching ibig pair
-         unless ( grep { $ial eq $_ } @already ) {
-            $aname = $$list[0]; $bname = $$list[1];
-            #print "tied array $ial: $aname   $bname\n";
-            if ( grep { $aname eq $_ } @tmplist ) {
-               unless ( grep { $bname eq $_ } @tmplist ) {
-                  push @tmplist, $bname;
-                  push @already, $ial;
-               }
-            }
-            if ( grep { $bname eq $_ } @tmplist ) { # note this is not
-               unless ( grep { $aname eq $_ } @tmplist ) {
-                  push @tmplist, $aname;
-                  push @already, $ial;
-               }
-            }
-            #print "... Current tmplist = @tmplist\n";
-            #print "... Already put in equiv_lists: @already\n";
-         }
-         $ial ++;
-      } # foreach list loop
-   } # unless loop #######################
-   } # if not_in
-   if ( @tmplist>0 ) { push @equiv_lists, [@tmplist]; }
-   $ibig ++;
+  #print "\nConstruct lists with same populations - second version\n";
+  my @equiv_lists = (); # this should be array of arrays of equivalent states
+  my @already = (); # list of tied pairs already linked for equivlaent states
+  my $ibig = 0;
+  my @tmplist;
+  my $aname; my $bname; my $ilist; my $not_in; my $ial; my $list; my $tlist;
+  foreach $tlist ( @tied_states ) { # now all are two element arrays
+     @tmplist = ();
+     $aname = $$tlist[0]; $bname = $$tlist[1];
+     #print "TIED PAIR: $aname  $bname\n";
+     $ilist = 0;
+     # possible both states already in a list even if tied pair not yet considered due to 'loops'
+     $not_in = 1;
+     foreach $list ( @equiv_lists ) {
+        if ( grep { $aname eq $_ } @{$equiv_lists[$ilist]} ) { # just need to find one element
+           # because both elements will be listed due to loop
+           #print "ITEMS $aname $bname FOUND in existing list\n";
+           $not_in = 0;
+        }
+        $ilist ++;
+     }
+     if ( $not_in==1 ) {
+     unless ( grep { $ibig eq $_ } @already ) { ################
+        #print "NOW CHECKING TIED PAIR $ibig: $aname  $bname\n";
+        push @tmplist, ( $aname, $bname );
+        push @already, $ibig;
+        $ial = 0; # index for tied pairs
+        foreach $list ( @tied_states ) { # loop to find other pairs matching ibig pair
+           unless ( grep { $ial eq $_ } @already ) {
+              $aname = $$list[0]; $bname = $$list[1];
+              #print "tied array $ial: $aname   $bname\n";
+              if ( grep { $aname eq $_ } @tmplist ) {
+                 unless ( grep { $bname eq $_ } @tmplist ) {
+                    push @tmplist, $bname;
+                    push @already, $ial;
+                 }
+              }
+              if ( grep { $bname eq $_ } @tmplist ) { # note this is not
+                 unless ( grep { $aname eq $_ } @tmplist ) {
+                    push @tmplist, $aname;
+                    push @already, $ial;
+                 }
+              }
+              #print "... Current tmplist = @tmplist\n";
+              #print "... Already put in equiv_lists: @already\n";
+           }
+           $ial ++;
+        } # foreach list loop
+     } # unless loop #######################
+     } # if not_in
+     if ( @tmplist>0 ) { push @equiv_lists, [@tmplist]; }
+     $ibig ++;
+  }
+  return \@equiv_lists;
 }
-return \@equiv_lists;
-}
-
 
 sub equiv_state { # from raw index get equivalent-state index
    my $i = $_[0];
@@ -1235,7 +1254,6 @@ sub equiv_state { # from raw index get equivalent-state index
    return $ialt;
 }
 
-
 sub state_print { # print states and energies
    my $name;
    print "\nSTATES AND ENERGIES\n";
@@ -1245,7 +1263,6 @@ sub state_print { # print states and energies
    }
    print "\n";
 }
-
 
 sub mc_energy {
    my $a; my $b; my $emc = 0.0;
@@ -1282,7 +1299,6 @@ sub mc_energy {
    return ( $emc, $sflow, $wflow, $nflow );
 }
 
-
 sub flow_alt {
    # single direction flux from a to b: p_a * k_ab
    my ($aname, $bname) = @_;
@@ -1294,7 +1310,6 @@ sub flow_alt {
    #print "prob_a = $pa   k_ab = $kab\n";
    return $pa*$kab;
 }
-
 
 sub flow {
    # single direction flux from a to b: p_a * k_ab
@@ -1308,7 +1323,6 @@ sub flow {
    return $pa*$kab;
 }
 
-
 sub edge_checker_ion {
    # check whether edge from a to b leads to transport to inside: add to list @n_edges
    # use unit states encoded in $ionfwd[0] and $ionfwd[1]
@@ -1319,7 +1333,6 @@ sub edge_checker_ion {
       push @n_edges, [ $aname, $bname ];
    }
 }
-
 
 sub edge_checker_in {
    # check whether edge from a to b leads to transport to inside: add to list @s_edges
@@ -1332,7 +1345,6 @@ sub edge_checker_in {
    }
 }
 
-
 sub edge_checker_tox { # examine "toxin" = W
    # check whether edge from a to b leads to transport to inside: add to list @w_edges
    # use unit states encoded in $not_goals[0] and $not_goals[1]
@@ -1343,7 +1355,6 @@ sub edge_checker_tox { # examine "toxin" = W
       push @w_edges, [ $aname, $bname ];
    }
 }
-
 
 sub edge_checker_slow_rev {
    # check whether edge from a to b is slow - e.g., unbinding to outside in IF conformation
@@ -1375,7 +1386,6 @@ sub edge_checker_slow_rev {
    return $slow;
 }
 
-
 sub edge_checker_slow { # this function no longer used - but is there a typo below
    # check whether edge from a to b is slow - e.g., unbinding to outside in IF conformation
    # use info encoded in @slowies array
@@ -1406,7 +1416,6 @@ sub edge_checker_slow { # this function no longer used - but is there a typo bel
    return $slow;
 }
 
-
 sub is_binding { # checks whether the transition involves binding
    # check whether edge from a to b is slow - e.g., unbinding to outside in IF conformation
    # use info encoded in @slowies array
@@ -1425,7 +1434,6 @@ sub is_binding { # checks whether the transition involves binding
    return $yes;
 }
 
-
 sub adjust_tied_barriers {
    my $bar = shift(@_);
    my $energy = shift(@_);
@@ -1437,40 +1445,8 @@ sub adjust_tied_barriers {
       foreach $x ( @{$same_bar{$key}} ) {
          #print MCFILE "... Changing ebar of $x to $energy\n";
          $ebars{$x} = $energy;
+         #print DEBUG "x = $x, energy = $energy, ebar of x = $ebars\{$x\}\n";
       }
-   }
-}
-
-
-sub adjust_tied_energies {
-   my $name = $_[0];
-   my $itie; my $jtmp; my $eref; my $jref;
-   #print "CORRECTING ENERGY - Working on $name\n";
-   $eref = $energies{$name};
-   $itie = 0; # index of which tied list
-   foreach $list ( @tied_states ) { # loop through all tied lists
-      if ( grep { $name eq $_ } @$list ) {
-         @elist = @{$tied_energies[$itie]};
-         #print "Correcting energy: found $name in tied array @$list";
-         #print " .. energies: @elist\n";
-         # change energies of all states in list (even though redundant for initialization)
-         # except current $name - then this can be used for MC
-         $jtmp = 0; # index for names in tied list
-         foreach $tmpname ( @$list ) { # Loop through to find index of ref name
-            if ( $tmpname eq $name ) { $jref = $jtmp; }
-            $jtmp ++;
-         }
-         $jtmp = 0; # index for names in tied list
-         foreach $tmpname ( @$list ) { # Loop through names in tied list & change energies
-            unless ( $tmpname eq $name ) {
-               #print "Changing energy of $tmpname relative to $name with energy = $eref\n";
-               $energies{$tmpname} = $eref + $elist[$jtmp] - $elist[$jref];
-               #print "****** Energy of $tmpname now = $energies{$tmpname}\n";
-            }
-            $jtmp ++;
-         }
-      }
-      $itie ++;
    }
 }
 
@@ -1496,7 +1472,6 @@ sub distance {
     return $dist;
 }
 
-
 sub all_in {
     # checks whether all elements of an array (subset of unit names)
     # are part of a string (state name)
@@ -1514,7 +1489,6 @@ sub all_in {
     return $test;
 }
 
-
 sub pieces {
     # takes a state and returns a list of the names of each unit's state
     my ($one_ref) = @_;
@@ -1524,7 +1498,6 @@ sub pieces {
     #print "state_name = $state_name  pieces = @pieces\n";
     return \@pieces;
 }
-
 
 sub energy_noneq {
     # takes a state name and returns the energy by summing terms
@@ -1567,43 +1540,14 @@ sub debug {
 
 }
 
-sub adjancent_matrix_to_csv {
-
-  my $adjacent_file ="adjacent_matrix.csv";
-  open(MATRIX, "> $adjacent_file");
-
-  for ($i = 0; $i < $nstates; $i++){
-      if ($i==0){
-        print MATRIX " , $snames[$i], ";
-      }
-      elsif ($i < $nstates && $i >= 1){
-          print MATRIX "$snames[$i], ";
-      }
-    }
-  print MATRIX "\n";
-  for ($i = 0; $i < $nstates; $i++){
-      print MATRIX "$snames[$i], ";
-    for ($j = 0; $j < $nstates; $j++ ){
-        print MATRIX "$state_adjacent_matrix[$i][$j], " ;
-    }
-  print MATRIX "\n";
-  }
-
-  close(MATRIX);
-}
-
-# exports nxn matrix []
+# exports nxn matrix [] to csv file
 sub matrix_to_csv {
   my @matrix_to_export = @{$_[0]};
   my $matrix_file_name = $_[1];
   my $n_dim = $_[2];
   my @n_labels = @{$_[3]};
-  #print Dumper(@matrix_to_export)."\n";
-  #print $matrix_file_name."\n";
-  #print $n_dim."\n";
-  #print Dumper(@n_labels)."\n";
-  open(MATRIX2, "> $matrix_file_name");
 
+  open(MATRIX2, "> $matrix_file_name");
   for ($i = 0; $i < $n_dim; $i++){
       if ($i==0){
         print MATRIX2 " , $n_labels[$i], ";
@@ -1620,35 +1564,8 @@ sub matrix_to_csv {
     }
   print MATRIX2 "\n";
   }
-
   close(MATRIX2);
 }
-
-sub energies_matrix_to_csv {
-
-  my $energies_file ="energies_matrix.csv";
-  open(MATRIX, "> $energies_file");
-
-  for ($i = 0; $i < $nstates; $i++){
-      if ($i==0){
-        print MATRIX " , $snames[$i], ";
-      }
-      elsif ($i < $nstates && $i >= 1){
-          print MATRIX "$snames[$i], ";
-      }
-    }
-  print MATRIX "\n";
-  for ($i = 0; $i < $nstates; $i++){
-      print MATRIX "$snames[$i], ";
-    for ($j = 0; $j < $nstates; $j++ ){
-        print MATRIX "$state_relative_energy[$i][$j], " ;
-    }
-  print MATRIX "\n";
-  }
-
-  close(MATRIX);
-}
-
 
 #this script loads in adjacency matrix (in .csv format)from proof-maker
 #then it converts the matrix to graph then to sub matrices to use in proof-maker
@@ -1674,18 +1591,6 @@ sub import_from_python {
     my $connected_states_ref = $json_ref_data; #copy of hash references to be used in other sub routines
     my %json_deref_data = %{$json_ref_data};#dereference
 
-    #print "json dumper:\n";
-    #print Dumper($json_ref_data)."\n";
-    #print "json dereferenced:\n";
-    #traverse through hash of hashes
-    #foreach $key (keys %json_deref_data){ #for each 1st level key in hash
-    #  print "key1: $key: \n";
-      #foreach $key_in_key (keys %{$json_deref_data{$key}}){ #for each 2nd level key in hash. (must dereference 2nd level in perl)
-        #print "\tkey2: $key_in_key \n";
-        #print "\t\tvalue2: $json_deref_data{$key}{$key_in_key}\n"; #scalar value at 2nd level key
-    #  }
-    #}
-    #initial_model($connected_states_ref); #testing
     return $connected_states_ref;
 }
 
@@ -1696,19 +1601,14 @@ sub initial_model {
   foreach $reference_state ( keys %connected_states_deref) {
      adjust_tied_energies2( $reference_state, $connected_states_ref, 0.0);
   }
-  #adjust_tied_energies2("OF-Ni-Sb-Wi",$connected_states_ref, 3.0 );#testing
-  #adjust_tied_energies2("OF-Ni-Sb-Wi",$connected_states_ref, -2.0 );#testing
 }
-
 
 sub adjust_tied_energies2 { # takes in perturbed_state, connected_states_ref, and energy_pertubation
   my $perturbed_state = $_[0];
   my $connected_states_ref = $_[1];
-  #my $energy_reference = $_[2];
   my $energy_pertubation = $_[2];
   my %connected_states_deref = %{$connected_states_ref};
   print "perturbed_state: $perturbed_state \n";
-  print DEBUG "perturbed_state: $perturbed_state \n";
   #search for connected subgraph of perturbed state
   #search 1st level for match
   foreach $key (keys %connected_states_deref){
@@ -1720,12 +1620,61 @@ sub adjust_tied_energies2 { # takes in perturbed_state, connected_states_ref, an
             $new_energy = $previous_energy + $energy_pertubation;
             $connected_states_deref{$key}{$key_in_key} = $new_energy;
             $energies{$key_in_key} = $new_energy;
-            print "state $key_in_key energy set from $previous_energy to $new_energy\n";
-            print DEBUG "state $key_in_key energy set from $previous_energy to $new_energy\n";
+            #print "state $key_in_key energy set from $previous_energy to $new_energy\n";
           }
       }
     }
   }
+}
+
+sub load_config_settings {
+
+  my $config_file = $_[0]; #load config file
+  print DEBUG "using file: $config_file\n";
+  # default parameter values
+  # note: "state" is static variable (i.e. initialized once and retains value between subroutines). Needs Perl 5.10+
+  my %default_parameters = (
+    proof => 1,
+    na_first => 1,
+    nsteps => 1e2,
+    dprint => 1e0,
+    n_beta => 2e2,
+    seed => 456789,
+    demax => 1.0,
+    alpha => 2.0,
+    beta_init => 1e1,
+    fbeta => 1e3,
+    tol => 0.3,
+    pbeta_stay => 0.2,
+    dmu_N => -4,
+    dmu_S => 2,
+    dmu_W => 2,
+    fmu_N => 0.5,
+    fmu_S => 0.5,
+    fmu_W => 0.5,
+    ebarslow => 99,
+    kzero => 1e-3,
+    ebump => 1.0
+  );
+
+
+  my @required_parameters = ( # Required paramters to be in config file
+    "proof", "na_first", # Simulation Parameters
+    "nsteps","dprint","n_beta","seed","demax","alpha","beta_init","fbeta","tol","pbeta_stay", # Monte Carlo Parameters
+    "dmu_N","dmu_S","dmu_W","fmu_N","fmu_S","fmu_W","ebarslow","kzero","ebump" # Physical Parameters
+  );
+
+  my %config;
+  Config::Simple->import_from( $config_file, \%config);
+
+  foreach $param (@required_parameters ) {  # Verify
+    print DEBUG "Parameter '$_' is missing from config. Using default value = $default_parameters{$_}\n" unless exists $config{$_};
+  }
+
+  my %settings = (%default_parameters, %config );
+
+  print DEBUG "settings: \n". Dumper(%settings)."\n";
+  return %settings;
 }
 
 # Caculates and prints script runtime in seconds
