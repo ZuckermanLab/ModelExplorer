@@ -37,7 +37,7 @@ use Config::Simple;
 # Improve program performance (distance subroutine botleneck, PDL matrix solver)
 # Improve documentation (code comments and readme)
 # Rewrite code into subroutines
-# Use config file
+# Use config file (in progress)
 # Add unit tests
 
 # UNIT TESTS TO ADD:
@@ -51,53 +51,9 @@ use Config::Simple;
 # To get estimated runtime
 my $start_time = time(); # for basic performance testing
 
-#testing config file
-=pod
-### Simulation type
-$proof = 1; # 1 if proofreading (additional states and transitions present compared to simple transport)
-$na_first = 1; # 1 if 'sodium' (N) is forced to bind first
-
-### MONTE CARLO PARAMETERS ###
-$nsteps = 1e2; # number of Monte Carlo steps
-$dprint = 1e0; # interval between prints
-$n_beta = 2e2; # number of MC steps after which beta (inverse temperature) changes
-$seed = 456789; # seed for random number generator
-
-$demax = 1.0; # maximum change in energy of state or transition state
-$alpha = 2.0; # exponent for toxin flow in MC 'energy' function which sets fitness of model
-$beta_init = 1e1; # initial value of beta = inverse temperature
-$fbeta = 1e3; # max factor by which beta can change during the MC run, which includes 'tempering'
-$tol = 0.3; # fractional energy change deemed significant in tempering
-$pbeta_stay = 0.2; # probability to stay at same beta during tempering
-#$beta_early = 1e1;  # alternate between two values
-#$beta_late = 1e3;
-### PHYSICAL PARAMETERS (everything in kT units, effectively)
-$dmu_N = -4; # chemical potential change (mu_i - mu_o) of driving "ion" N (e.g., sodium)
-$dmu_S = 2; # chemical potential change of "substrate" S (e.g., sugar)
-$dmu_W = 2; # chemical potential change of wrong "substrate" W (e.g., toxin)
-$fmu_N = 0.5; # fraction of dmu attributed to outside - i.e., log of concnetration increase relative to equil
-$fmu_S = 0.5; # fraction of dmu attributed to outside - i.e., log of concnetration increase relative to equil
-$fmu_W = 0.5; # fraction of dmu attributed to outside - i.e., log of concnetration increase relative to equil
-$ebarslow = 99; # minimum energy value of barrier height (above max of two states) for slow transitions
-$kzero = 1e-3; # rate constant prefactor: full first-order rate constant = k_ij = kzero * exp( - barrier_energy )
-$ebump = 1.0;  # amount by which initial transition-state (barrier) energy exceeds max of pair
-
-=cut
-
-$tmpfile = "prob_ss.dat";
-$mcfile = "mc_out.dat";
-$kfile = "rate_matrix.tmp";
-$datfile = "evolver_rates.dat";
-$flowfile = "evolver_flows.dat";
-$debugfile = "debug";
-open(MCFILE, "> $mcfile");
-open(DATA, "> $datfile");
-open(FLOWS, "> $flowfile");
-open(DEBUG, "> $debugfile");
-
 %parameters = load_config_settings("config.txt");
 
-#temporary solution. will be creating modules
+#temporary solution to work with existing code...
 $proof = $parameters{"proof"}; # 1 if proofreading (additional states and transitions present compared to simple transport)
 $na_first = $parameters{"na_first"}; # 1 if 'sodium' (N) is forced to bind first
 $nsteps = $parameters{"nsteps"}; # number of Monte Carlo steps
@@ -119,6 +75,18 @@ $fmu_W = $parameters{"fmu_W"}; # fraction of dmu attributed to outside - i.e., l
 $ebarslow = $parameters{"ebarslow"}; # minimum energy value of barrier height (above max of two states) for slow transitions
 $kzero = $parameters{"kzero"}; # rate constant prefactor: full first-order rate constant = k_ij = kzero * exp( - barrier_energy )
 $ebump = $parameters{"ebump"};  # amount by which initial transition-state (barrier) energy exceeds max of pair
+
+$tmpfile = $parameters{"tmpfile"}; # temporary file used for calculations
+$mcfile = $parameters{"mcfile"}; # outputs monte carlo information
+$kfile = $parameters{"kfile"}; # temporary file which contains rate matrix
+$datfile = $parameters{"datfile"}; # outputs MC number and MC energy function. USE FOR BASIC ANALYSIS!
+$flowfile = $parameters{"flowfile"}; #temporary file whihc contains configuration states for trial pertubation
+$debugfile = $parameters{"debugfile"}; # outputs debug info (as needed)
+
+open(MCFILE, "> $mcfile") or die "Error! Cannot open $mcfile";
+open(DATA, "> $datfile") or die "Error! Cannot open $datfile";
+open(FLOWS, "> $flowfile") or die "Error! Cannot open $flowfile";
+open(DEBUG, "> $debugfile") or die "Error! Cannot open $debugfile";
 
 
 srand($seed); # initializes random number generator ... should make MC repeatable
@@ -231,7 +199,6 @@ else { $fixed_states{"OF-No-So"} = 0.0;  } # start/reference state: nothing boun
              #"IF-Sb-Nb"
            );
 
-# create output files
 
 $n_units = @state_bases; # the number of units/modules
 print "\nUNITS:\n";
@@ -1630,9 +1597,8 @@ sub adjust_tied_energies2 { # takes in perturbed_state, connected_states_ref, an
 sub load_config_settings {
 
   my $config_file = $_[0]; #load config file
-  print DEBUG "using file: $config_file\n";
+  print "using config file: $config_file\n";
   # default parameter values
-  # note: "state" is static variable (i.e. initialized once and retains value between subroutines). Needs Perl 5.10+
   my %default_parameters = (
     proof => 1,
     na_first => 1,
@@ -1654,26 +1620,33 @@ sub load_config_settings {
     fmu_W => 0.5,
     ebarslow => 99,
     kzero => 1e-3,
-    ebump => 1.0
+    ebump => 1.0,
+    tmpfile => "prob_ss.dat",
+    mcfile => "mc_out.dat",
+    kfile => "rate_matrix.tmp",
+    datfile => "evolver_rates.dat",
+    flowfile => "evolver_flows.dat",
+    debugfile => "debug"
   );
 
 
   my @required_parameters = ( # Required paramters to be in config file
     "proof", "na_first", # Simulation Parameters
     "nsteps","dprint","n_beta","seed","demax","alpha","beta_init","fbeta","tol","pbeta_stay", # Monte Carlo Parameters
-    "dmu_N","dmu_S","dmu_W","fmu_N","fmu_S","fmu_W","ebarslow","kzero","ebump" # Physical Parameters
+    "dmu_N","dmu_S","dmu_W","fmu_N","fmu_S","fmu_W","ebarslow","kzero","ebump", # Physical Parameters
+    "tmpfile", "mcfile", "kfile", "datfile", "flowfile", "debugfile" # output files
   );
 
   my %config;
   Config::Simple->import_from( $config_file, \%config);
 
-  foreach $param (@required_parameters ) {  # Verify
-    print DEBUG "Parameter '$_' is missing from config. Using default value = $default_parameters{$_}\n" unless exists $config{$_};
+  for (@required_parameters ) {  # Verify
+    print "Parameter '$_' is missing from config. Using default value = $default_parameters{$_}\n" unless exists $config{$_};
   }
 
   my %settings = (%default_parameters, %config );
 
-  print DEBUG "settings: \n". Dumper(%settings)."\n";
+  print "settings: \n". Dumper(%settings)."\n";
   return %settings;
 }
 
