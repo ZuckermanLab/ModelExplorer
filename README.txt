@@ -130,10 +130,11 @@ $ebump = 1.0;  # amount by which initial transition-state (barrier) energy excee
 
 4. ASSUMPTIONS(in progress):
 
+*Should OF-IF conformational transistions be equivalent (when N, S, and W are held constant)?
+*Same barrier for W and S (un)binding. Should barrier difference = 0 for s & w?
 *Na must bind first (based on experimental insight)
 *Steady State Flow: constant source/drain of chemical potenial (i.e. sodium)
 *Should toxin be strictly 2KT higher energy than sugar? (dg_SW=2?)
-*Should barrier difference = 0 for s & w?
 
 5. USAGE:
 
@@ -230,23 +231,22 @@ For a more in-depth discussion on statistcal mechanics methods applied to cell b
 
 8. BUGS/To-Do:
 
-!BUG! - Energy state not restored to last accepted state after rejection. Need to fix and then add unit test. 
-Current hypothesis is that some states more connected than the program calculates. NEED TO CHECK BARRIERS?TRANSITIONS!
+!BUG! - NEED TO FIX TRANSITION BARRIER GROUPINGS! 
 
-Debugging findings: Created adjacency matrix and graph and found that tied states are more connected than previously thought
-Currently creating sub adjacency matrices to unit test for consistency and then use in adjust tied energies. 
+Debugging findings: From equiv_list_tr we found that the quivalent transitions are not correct. Some groups have duplicates, and there are duplicates of transitions.
 
 Proof-maker Unit Tests to Add:
 (1) Sum of steady state probabilities is one
 (2) Ratio of rates for a state pair give Boltz fac of energy difference
-(3) Energy differences among tied states match constraints
-(4) Energies of fixed states remain at constrained values
+(3) Energy differences among tied states match constraints (state "energy landscape" is set in python script, then initialized in perl)
+(4) Energies of fixed states remain at constrained values (state "energy landscape" is set in python script, then initialized in perl)
 (5) Reject/Restore step properly restores energies
-(6) Tied states graphs are self-consistent
+(6) Tied states graphs are self-consistent (done in python, but can be better integrated into perl code, which currently loads boolean "consistent" variable from file)
 
 Proof-maker Improvements: 
+*Should OF-IF conformational transistions be equivalent (when N, S, and W are held constant)?
 *"use strict" errors out (currently commented out)
-*Distance subroutine is a bottleneck
+*Distance subroutine is a bottleneck (only needs to be called once, before MC loop starts)
 *Optimize PDL matrix solving funtion
 *Rewrite much of the code into subroutines that can be aclled in main
 *Optimize code to run on cluster
@@ -265,9 +265,14 @@ General Tweaks:
 
 9. CHANGE LOG:
 
-Update 3 (2017-11-1): "State energies not restored after rejection" bug has been fixed using new python script. Issue was the equivalent states were not all completely connected. Python creates connected state graphs based on adjacency matrix, checks cycle for consistency using relative energies, and creates new connected states dictionary (of dictionary) containing state and connected states with relative energies (i.e. energy landscape). Config file functionality is added.
+Update 3 (2017-11-1): "State energies not restored after rejection" bug has been fixed using new python script. 
+Issue was the equivalent states were not all completely connected. 
+Python creates connected state graphs based on adjacency matrix, checks cycle for consistency using relative energies, 
+and creates new connected states dictionary (of dictionary) containing state and connected states with relative energies (i.e. energy landscape). 
+Config file functionality is added.
 
-Update 2 (2017-08-13): Perl PDL used in place of Python/Numpy to elimate system IO call slow down in proof-maker. Uploaded as proof-maker2.prl (will keep original for historical purposes). Uploaded analyze-model.prl. Added more to README. 
+Update 2 (2017-08-13): Perl PDL used in place of Python/Numpy to elimate system IO call slow down in proof-maker. Uploaded as proof-maker2.prl (will keep original for historical purposes). 
+Uploaded analyze-model.prl. Added more to README. 
 
 Update 1 (2017-07-13): README.txt created by August George. Added table of
 contents and changelog. Minor changes to comments in proof-maker.prl.

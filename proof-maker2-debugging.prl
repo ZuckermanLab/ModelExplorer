@@ -377,6 +377,9 @@ for ( $i=0; $i<$nstates; $i++ ) {
             push @tied_states_tr, [ $aname, $bname ]; #tied transition state if nchange is 1
             $transition_adjacent_matrix[$i][$j] = 1;
             $transition_adjacent_matrix[$j][$i] = 1;
+            print DEBUG "aname:\n".Dumper($aname);
+            print DEBUG "bname:\n".Dumper($bname);
+            print DEBUG "tied_states_tr:\n".Dumper(@tied_states_tr);
          }
       }
    }
