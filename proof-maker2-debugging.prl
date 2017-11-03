@@ -4,7 +4,6 @@ use JSON;
 use utf8;
 use warnings;
 use Data::Dumper; #helpful for debugging
-#use feature 'state';
 use Config::Simple;
 #use strict; #errors out
 
@@ -294,6 +293,8 @@ push @state_adjacent_matrix, [(0)x$nstates] for (1..$nstates);
 my @state_relative_energy= ();
 push @state_relative_energy, [(0)x$nstates] for (1..$nstates);
 
+my @transition_adjacent_matrix = ();
+push @transition_adjacent_matrix, [(0)x$nstates] for (1..$nstates);
 
 # Make energy hash, assign initial energies (all zero except if in fixed list)
 # and make hash of state names to indices
@@ -374,16 +375,21 @@ for ( $i=0; $i<$nstates; $i++ ) {
          $state_relative_energy[$j][$i] = -$etmp; #energy difference at A_ji = Ei-Ej = -etmp
          if ( $nchange==1 ) {
             push @tied_states_tr, [ $aname, $bname ]; #tied transition state if nchange is 1
+            $transition_adjacent_matrix[$i][$j] = 1;
+            $transition_adjacent_matrix[$j][$i] = 1;
          }
       }
    }
 }
 print "\n";
 
+print DEBUG "transition adjacent matrix:\n".Dumper(@transition_adjacent_matrix);
+print DEBUG "state adjacent matrix:\n".Dumper(@state_adjacent_matrix);
 # From tied states, construct lists with same populations (second version)
 %samep_alt = ();
 %equiv_alt = ();
 @equiv_lists = @{ equiv_list_from_pairs( \@tied_states ) };
+print DEBUG "equiv_lists:\n".Dumper(@equiv_lists);
 
 # Put the same info into more useful hashes
 ( $ref_one, $ref_two ) = equiv_hashes_from_list ( \@equiv_lists );
@@ -485,6 +491,7 @@ print "\n";
 # creates .csv from adjacency matrix and relative energies matrix
 matrix_to_csv(\@state_adjacent_matrix, "adjacent_matrix.csv", $nstates, \@snames);
 matrix_to_csv(\@state_relative_energy, "energies_matrix.csv", $nstates, \@snames);
+matrix_to_csv(\@transition_adjacent_matrix, "transition_adjacent_matrix.csv",$nstates, \@snames );
 
 # uses python script to generate (from graph) connected states/energies and initialize MC model
 python_networkx();
@@ -610,6 +617,7 @@ for ( $i=0; $i<@barkeys; $i++ ) {
         $etcount ++ ;
         print ".. Equivalent transition $etcount: $both_trans\n";
         push @equiv_transns, [ $apair, $bpair ];
+
      }
   } # end of j loop
 } # end of i loop
@@ -617,6 +625,9 @@ for ( $i=0; $i<@barkeys; $i++ ) {
 # Information for maintaining equivalent barrier heights for equivalent transitions
 # Makes lists of equivalent barriers (transitions)
 @equiv_lists_tr = @{ equiv_list_from_pairs( \@equiv_transns ) };
+
+print DEBUG "equiv_transns:\n".Dumper(@equiv_transns);
+print DEBUG "equiv_lists_tr:\n".Dumper(@equiv_lists_tr);
 
 print "\nLists of equivalent transitions\n";
 foreach $list ( @equiv_lists_tr ) {
@@ -633,11 +644,11 @@ foreach $list ( @equiv_lists_tr ) {
 
 foreach $key ( @samekeys_tr ) {
   foreach $x ( @{$same_bar{$key}} ) {
-     print "$x is a dup of $key\n";
+     print DEBUG "$x is a dup of $key\n";
      push @dups_tr, $x;
   }
 }
-#print DEBUG "dups_tr:\n".Dumper(@dups_tr);
+print DEBUG "dups_tr:\n".Dumper(@dups_tr);
 print "DUPLICATES of other transitions: @dups_tr\n";
 print "\n";
 
@@ -1405,6 +1416,7 @@ sub adjust_tied_barriers {
    my $bar = shift(@_);
    my $energy = shift(@_);
    my $key = $equiv_tr{$bar};
+   #print DEBUG "$key\n";
    if ( grep { $bar eq $_ } @dups_tr ) {
       #print MCFILE "\nEquivalents for transition $bar refd to $key\n";
       #print MCFILE "... Changing ebar of $key to $energy\n";
@@ -1595,11 +1607,9 @@ sub adjust_tied_energies2 { # takes in perturbed_state, connected_states_ref, an
 }
 
 sub load_config_settings {
-
   my $config_file = $_[0]; #load config file
   print "using config file: $config_file\n";
-  # default parameter values
-  my %default_parameters = (
+  my %default_parameters = (   # default parameter values
     proof => 1,
     na_first => 1,
     nsteps => 1e2,
@@ -1628,25 +1638,19 @@ sub load_config_settings {
     flowfile => "evolver_flows.dat",
     debugfile => "debug"
   );
-
-
   my @required_parameters = ( # Required paramters to be in config file
     "proof", "na_first", # Simulation Parameters
     "nsteps","dprint","n_beta","seed","demax","alpha","beta_init","fbeta","tol","pbeta_stay", # Monte Carlo Parameters
     "dmu_N","dmu_S","dmu_W","fmu_N","fmu_S","fmu_W","ebarslow","kzero","ebump", # Physical Parameters
     "tmpfile", "mcfile", "kfile", "datfile", "flowfile", "debugfile" # output files
   );
-
   my %config;
   Config::Simple->import_from( $config_file, \%config);
-
   for (@required_parameters ) {  # Verify
     print "Parameter '$_' is missing from config. Using default value = $default_parameters{$_}\n" unless exists $config{$_};
   }
-
   my %settings = (%default_parameters, %config );
-
-  print "settings: \n". Dumper(%settings)."\n";
+  #print "settings: \n". Dumper(%settings)."\n";
   return %settings;
 }
 

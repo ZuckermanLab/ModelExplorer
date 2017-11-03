@@ -10,7 +10,9 @@
 # Output: Error Flag, Dictionary of subgraph energy landscapes (also a dictionary), list of connected states in subgraph
 # Note: .CSV files currently have row/column labels and null character at the end of each rows
 # Note: Unused subroutine to draw and save a graph image (.png) as well as generate test data
-# In progress: fine tuning graph layout for images
+# Possible Improvements: fine tuning graph layout for images
+#
+# IN PROGRESS: Adding transition/barriers
 
 from numpy import genfromtxt
 import numpy as np
@@ -57,31 +59,44 @@ def check_and_prune_cycle(SUB_ADJACENCY_GRAPH,ENERGIES_MATRIX):
 			gr.remove_edge(cycle[0][0],cycle[0][1]) #removes first edge
 			en_sum = 0
 			try:
-				cycle = list(nx.find_cycle(gr))
-			except nx.exception.NetworkXNoCycle:
+				cycle = list(nx.find_cycle(gr)) #lists cycle by edges (i.e. [(a,b),(b,c),(c,a)]) (there is one less edge now)
+			except nx.exception.NetworkXNoCycle: #catch error if there is no cycle found
 				cycle = False
 				consistent = "cycle is consistent"
 				return gr, consistent #cycle is consistent, exit
 
-# Load .csv data files and convert them to somthing useful
-def import_and_format_data(ADJACENCY_FILE,ENERGIES_FILE):
+# Load .csv data files and convert them to somthing useful (IN PROGRESS, WILL MAKE MORE GENERAL)
+def import_and_format_data(ADJACENCY_FILE,ENERGIES_FILE, TRANSITION_ADJACENCY_FILE):
+
+
 	raw_adjacency_data = np.genfromtxt(ADJACENCY_FILE, delimiter=',', dtype=None) #guesses data type (is slower)
 	raw_energies_data = np.genfromtxt(ENERGIES_FILE, delimiter=',', dtype=None)
+
 	label_data = raw_adjacency_data[1:, 0:1].tolist() #labels from only first column, each row after first row
 	n = len(label_data) #dimension of nxn matrix = number of labels
 	init_adjacency_matrix = raw_adjacency_data[1:n+1,1:n+1].astype(np.int) #skip labels, ends before null char, make list
 	init_energies_matrix = raw_energies_data[1:n+1,1:n+1].astype(np.float) # matrix[x][y] is value at row x, col y
+
 	init_labels = dict(zip(xrange(n), sum(label_data, [])[:])) #"flattens" list of lists into a single list
-	return (init_adjacency_matrix, init_energies_matrix, init_labels)
+
+	#not working propery! in progress!
+	raw_transition_adjacency_data = np.genfromtxt(TRANSITION_ADJACENCY_FILE, delimiter=',', dtype=None) #guesses data type (is slower)
+	print(raw_transition_adjacency_data)
+	init_transitions_adjacency_matrix = raw_energies_data[1:n+1,1:n+1].astype(np.float)
+	print(init_transitions_adjacency_matrix)
+	return (init_adjacency_matrix, init_energies_matrix, init_labels, init_transitions_adjacency_matrix)
 
 # Draws and saves (.png) graph image. Can add text node labels. Default is numeric node labels.
+
 def draw_and_save_graph(GRAPH, FILENAME, TEXT_LABELS={}):
 	gr = GRAPH
 	filename = FILENAME #subroutine needs file name to save image to
 	text_labels = TEXT_LABELS #list of labels (from initialization subroutine)
 	mapping = {} #mapping is a dictionary of nodes and label names. Used to draw text labels
-	for i in gr.nodes(): #to avoid errors, only map the nodes used in this graph (subgraphs use less nodes)
-		mapping[i] = text_labels[i]
+	if TEXT_LABELS:
+		for i in gr.nodes(): #to avoid errors, only map the nodes used in this graph (subgraphs use less nodes)
+			mapping[i] = text_labels[i]
+
 	plt.clf() #clear plot
 	if not TEXT_LABELS:
 		nx.draw( #draw graph with numeric node labels
@@ -128,8 +143,7 @@ def graph_to_data(TREE_GRAPH, ENERGIES, LABELS, MASTER_DICTIONARY, MASTER_SUBGRA
 	master_dictionary[lbls[node_list[0]]] = labeled_data # add to master dictionary. key = first node, value = dictionary of nodes and relative energies (energy landscape)
 	master_subgraph_list.append(label_list) # adds to master list of "lists of connected states in subgraph"
 
-#takes master dictionary, list, and error flag and prints it to a file to be
-#read by perl
+#takes master dictionary, list, and error flag and prints it to a file to be read by perl
 def export_to_file(DATA,DATA2,FLAG, FILENAME):
 	data = DATA
 	data2 = DATA2
@@ -144,6 +158,7 @@ def export_to_file(DATA,DATA2,FLAG, FILENAME):
 
 	with open('data.json', 'w') as outfile:
 		json.dump(data, outfile)
+
 #generate data for testing. under development
 #def test_module():
 
@@ -153,11 +168,16 @@ def export_to_file(DATA,DATA2,FLAG, FILENAME):
 def main():
 	adjacency_file = "adjacent_matrix.csv"
 	energies_file = "energies_matrix.csv"
+	transition_adjacency_file = "transition_adjacent_matrix.csv"
+
 	error = False #error flag to send back to perl
 	master_dictionary = {} # store all subgraph data into one dictionary that then gets exported into perl. The subgraph "energy landscape" to be used by perl
 	master_subgraph_list = [] # store a list of states of each connected subgraph, to be used by perl
-	(adjacency_matrix, energy_matrix, state_labels) = import_and_format_data(adjacency_file, energies_file) #import and format data
+	(adjacency_matrix, energy_matrix, state_labels, transition_adjacency_matrix) = import_and_format_data(adjacency_file, energies_file, transition_adjacency_file) #import and format data
 	adjacency_graph = adjacency_matrix_to_graph(adjacency_matrix) #create adjacency graph
+	print(transition_adjacency_matrix)
+	transition_adjacency_graph = adjacency_matrix_to_graph(transition_adjacency_matrix)
+	draw_and_save_graph(transition_adjacency_graph, "adjacency_graph")
 	subgraphs = graph_to_subgraph(adjacency_graph) #create subgraphs
 
 	for k in xrange(len(subgraphs)): #loop through each subgraph
