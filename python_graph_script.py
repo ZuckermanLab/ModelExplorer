@@ -66,25 +66,28 @@ def check_and_prune_cycle(SUB_ADJACENCY_GRAPH,ENERGIES_MATRIX):
 				return gr, consistent #cycle is consistent, exit
 
 # Load .csv data files and convert them to somthing useful (IN PROGRESS, WILL MAKE MORE GENERAL)
-def import_and_format_data(ADJACENCY_FILE,ENERGIES_FILE, TRANSITION_ADJACENCY_FILE):
+def import_and_format_data(ADJACENCY_FILE,ENERGIES_FILE, TRANSITION_ADJACENCY_FILE, TRANSITION_ENERGY_FILE):
 
 
 	raw_adjacency_data = np.genfromtxt(ADJACENCY_FILE, delimiter=',', dtype=None) #guesses data type (is slower)
 	raw_energies_data = np.genfromtxt(ENERGIES_FILE, delimiter=',', dtype=None)
+	raw_transition_adjacency_data = np.genfromtxt(TRANSITION_ADJACENCY_FILE, delimiter=',', dtype=None)
+	raw_transition_energies_data = np.genfromtxt(ENERGIES_FILE, delimiter=',', dtype=None)
 
 	label_data = raw_adjacency_data[1:, 0:1].tolist() #labels from only first column, each row after first row
 	n = len(label_data) #dimension of nxn matrix = number of labels
+	transition_label_data = raw_adjacency_data[1:, 0:1].tolist()
+	transition_n = len(transition_label_data)
+
 	init_adjacency_matrix = raw_adjacency_data[1:n+1,1:n+1].astype(np.int) #skip labels, ends before null char, make list
 	init_energies_matrix = raw_energies_data[1:n+1,1:n+1].astype(np.float) # matrix[x][y] is value at row x, col y
+	init_transition_adjacency_matrix = raw_energies_data[1:n+1,1:n+1].astype(np.float)
+	init_transitions_energies_matrix = raw_transition_energies_data[1:n+1,1:n+1].astype(np.float) # matrix[x][y] is value at row x, col y
 
 	init_labels = dict(zip(xrange(n), sum(label_data, [])[:])) #"flattens" list of lists into a single list
+	init_transition_labels = dict(zip(xrange(n), sum(transition_label_data, [])[:]))
 
-	#not working propery! in progress!
-	raw_transition_adjacency_data = np.genfromtxt(TRANSITION_ADJACENCY_FILE, delimiter=',', dtype=None) #guesses data type (is slower)
-	print(raw_transition_adjacency_data)
-	init_transitions_adjacency_matrix = raw_energies_data[1:n+1,1:n+1].astype(np.float)
-	print(init_transitions_adjacency_matrix)
-	return (init_adjacency_matrix, init_energies_matrix, init_labels, init_transitions_adjacency_matrix)
+	return (init_adjacency_matrix, init_energies_matrix, init_labels, init_transition_adjacency_matrix, init_transitions_energies_matrix, init_transition_labels)
 
 # Draws and saves (.png) graph image. Can add text node labels. Default is numeric node labels.
 
@@ -168,17 +171,25 @@ def export_to_file(DATA,DATA2,FLAG, FILENAME):
 def main():
 	adjacency_file = "adjacent_matrix.csv"
 	energies_file = "energies_matrix.csv"
-	transition_adjacency_file = "transition_adjacent_matrix.csv"
+	transition_adjacency_file = "transition_state_adjacent_matrix.csv"
+	transition_energy_file = "transition_energy_matrix.csv"
 
 	error = False #error flag to send back to perl
 	master_dictionary = {} # store all subgraph data into one dictionary that then gets exported into perl. The subgraph "energy landscape" to be used by perl
 	master_subgraph_list = [] # store a list of states of each connected subgraph, to be used by perl
-	(adjacency_matrix, energy_matrix, state_labels, transition_adjacency_matrix) = import_and_format_data(adjacency_file, energies_file, transition_adjacency_file) #import and format data
+	master_transition_dictionary = {} # store all subgraph data into one dictionary that then gets exported into perl. The subgraph "energy landscape" to be used by perl
+	master_transition_subgraph_list = [] # store a list of states of each connected subgraph, to be used by perl
+
+
+	(adjacency_matrix, energy_matrix, state_labels, transition_adjacency_matrix, transition_energy_file, transition_labels) = import_and_format_data(adjacency_file, energies_file, transition_adjacency_file, transition_energy_file) #import and format data
 	adjacency_graph = adjacency_matrix_to_graph(adjacency_matrix) #create adjacency graph
-	print(transition_adjacency_matrix)
+
 	transition_adjacency_graph = adjacency_matrix_to_graph(transition_adjacency_matrix)
-	draw_and_save_graph(transition_adjacency_graph, "adjacency_graph")
+
+	#draw_and_save_graph(transition_adjacency_graph, "adjacency_graph")
+
 	subgraphs = graph_to_subgraph(adjacency_graph) #create subgraphs
+	transition_subgraphs = graph_to_subgraph(transition_adjacency_graph)
 
 	for k in xrange(len(subgraphs)): #loop through each subgraph
 		print "checking subgraph %s" % k
@@ -190,6 +201,18 @@ def main():
 			print consistent #cycle is consistent or there are no cycles
 		graph_to_data(pruned_graph,energy_matrix,state_labels, master_dictionary, master_subgraph_list) #adds to master dictionary and list
 	export_to_file(master_dictionary,master_subgraph_list,error,"python_to_perl") #exports master dictionary and list
+
+	for k in xrange(len(transition_subgraphs)): #loop through each subgraph
+		print "checking subgraph %s" % k
+		(transition_pruned_graph, consistent) = check_and_prune_cycle(transition_subgraphs[k],transition_energy_matrix) #set constistency flag for each subgraph
+		if not consistent: #check_and_prune_cycle function will set conistent ("" = false, string type used to allow text for "no cycles")
+			error = True #set error flag
+			print "ERROR! Cycles are not self-consistent!"
+		else:
+			print consistent #cycle is consistent or there are no cycles
+		graph_to_data(transition_pruned_graph,transition_energy_matrix,transition_labels, master_transition_dictionary, master_transition_subgraph_list) #adds to master dictionary and list
+	export_to_file(master_transition_dictionary,master_transition_subgraph_list,error,"python_to_perl_t") #exports master dictionary and list
+
 
 if __name__ == "__main__": #best practice to use main
     main()

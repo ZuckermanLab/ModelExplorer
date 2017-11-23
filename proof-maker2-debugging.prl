@@ -5,6 +5,7 @@ use utf8;
 use warnings;
 use Data::Dumper; #helpful for debugging
 use Config::Simple;
+use List::Util qw(first);
 #use strict; #errors out
 
 # Monte Carlo program to explore 'model space' by using steady-state transport
@@ -52,7 +53,7 @@ my $start_time = time(); # for basic performance testing
 
 %parameters = load_config_settings("config.txt");
 
-#temporary solution to work with existing code...
+#temporary solution to use config file with existing code... (prexisting paramters set to hash values loaded from config file)
 $proof = $parameters{"proof"}; # 1 if proofreading (additional states and transitions present compared to simple transport)
 $na_first = $parameters{"na_first"}; # 1 if 'sodium' (N) is forced to bind first
 $nsteps = $parameters{"nsteps"}; # number of Monte Carlo steps
@@ -135,8 +136,8 @@ if ( $proof==1 ) {
 # For proofreading, assume W and S (toxin and substrate) have same energy barrier for (un)binding
 if ( $proof==1 ) {
    @tied_for_bind = ();
-   push @tied_for_bind, [ "So-Wo", "So-Wb", "So-Wo", "Sb-Wo" ];
-   push @tied_for_bind, [ "Si-Wi", "Si-Wb", "Si-Wi", "Sb-Wi" ];
+   push @tied_for_bind, [ "So Sb", "Wo Wb"]; #substrate (un)binding from outside ~ toxin (un)binding from outside
+   push @tied_for_bind, [ "Si Sb", "Wi Wb"]; #substrate (un)binding from inside ~ toxin (un)binding from inside
 }
 
 # Slow transitions - some transitions should be slower than others
@@ -293,8 +294,6 @@ push @state_adjacent_matrix, [(0)x$nstates] for (1..$nstates);
 my @state_relative_energy= ();
 push @state_relative_energy, [(0)x$nstates] for (1..$nstates);
 
-my @transition_adjacent_matrix = ();
-push @transition_adjacent_matrix, [(0)x$nstates] for (1..$nstates);
 
 # Make energy hash, assign initial energies (all zero except if in fixed list)
 # and make hash of state names to indices
@@ -331,7 +330,7 @@ print "\n";
 # Relative affinity pairs omitted here to avoid incorrectly making equivalent states
 ### Algorithm: compare state pairs for differences in tied_bases array
 ### When a match is found, replace unit name in state name (w/ XX) - what remains at end must match
-### Note: $nchange is used to see if two states are equivalent (for binding of the other other species)
+### Note: $nchange is used to see if two states are equivalent (for binding of the other species)
 ### (i.e. for OF: NoSiWo->NoSbWo->NoSoWo differs by one "equivalent" unit Ni/No, No/Ni from NiSiWo->NiSbWo->NiSoWo)
 @tied_states = ();  # states themselves which are physically equivalent
 @tied_states_tr = ();  # states which are physically equivalent for transitions
@@ -373,26 +372,25 @@ for ( $i=0; $i<$nstates; $i++ ) {
          $state_adjacent_matrix[$j][$i] = 1;
          $state_relative_energy[$i][$j] = $etmp; #energy difference at A_ij = Ej-Ei = etmp
          $state_relative_energy[$j][$i] = -$etmp; #energy difference at A_ji = Ei-Ej = -etmp
-         if ( $nchange==1 ) {
+         if ( $nchange==1 ) { #Note: $nchange is used to see if two states are equivalent (for binding of the other other species)
+         ### (i.e. for OF: NoSiWo->NoSbWo->NoSoWo differs by one "equivalent" unit Ni/No, No/Ni from NiSiWo->NiSbWo->NiSoWo)
             push @tied_states_tr, [ $aname, $bname ]; #tied transition state if nchange is 1
-            $transition_adjacent_matrix[$i][$j] = 1;
-            $transition_adjacent_matrix[$j][$i] = 1;
-            print DEBUG "aname:\n".Dumper($aname);
-            print DEBUG "bname:\n".Dumper($bname);
-            print DEBUG "tied_states_tr:\n".Dumper(@tied_states_tr);
+
          }
       }
    }
 }
 print "\n";
 
-print DEBUG "transition adjacent matrix:\n".Dumper(@transition_adjacent_matrix);
-print DEBUG "state adjacent matrix:\n".Dumper(@state_adjacent_matrix);
+#print DEBUG "transition adjacent matrix:\n".Dumper(@transition_adjacent_matrix);
+#print DEBUG "state adjacent matrix:\n".Dumper(@state_adjacent_matrix);
+#print DEBUG "tied_states_tr:\n".Dumper(@tied_states_tr);
+#print DEBUG "transition state names:\n".Dumper(@transition_names_matrix);
 # From tied states, construct lists with same populations (second version)
 %samep_alt = ();
 %equiv_alt = ();
 @equiv_lists = @{ equiv_list_from_pairs( \@tied_states ) };
-print DEBUG "equiv_lists:\n".Dumper(@equiv_lists);
+#print DEBUG "equiv_lists:\n".Dumper(@equiv_lists);
 
 # Put the same info into more useful hashes
 ( $ref_one, $ref_two ) = equiv_hashes_from_list ( \@equiv_lists );
@@ -413,6 +411,8 @@ foreach $key ( @samekeys_alt ) {
 }
 print "DUPLICATES of other states: @dups_alt\n";
 print "\n";
+
+#print DEBUG "DUPLICATES of other states:\n".Dumper(@dups_alt);
 
 @equivkeys_alt = keys(%equiv_alt);
 print "These are the equivalents:\n";
@@ -494,7 +494,7 @@ print "\n";
 # creates .csv from adjacency matrix and relative energies matrix
 matrix_to_csv(\@state_adjacent_matrix, "adjacent_matrix.csv", $nstates, \@snames);
 matrix_to_csv(\@state_relative_energy, "energies_matrix.csv", $nstates, \@snames);
-matrix_to_csv(\@transition_adjacent_matrix, "transition_adjacent_matrix.csv",$nstates, \@snames );
+
 
 # uses python script to generate (from graph) connected states/energies and initialize MC model
 python_networkx();
@@ -558,29 +558,169 @@ foreach $pair ( @barkeys ) {
   print "State pair = $pair .... ebar = $ebars{$pair}\n";
 }
 
+
+
+my @tmp_transition_state_list = ();
+my @transition_state_list = ();
+my %hash_equiv_transns = ();
+my $equiv_tansns_name = "";
+
+#print DEBUG "@barkeys\n";
+
+#testing
+# find equivalent transitions
+print "\nFinding equivalent transitions\n";
+@equiv_transns = ();
+$etcount = 0; #tracks number of equivalent transitions
+
+for ( $i=0; $i<@barkeys; $i++ ) {
+  $apair = $barkeys[$i]; #pick a barrier (i.e. transition state)
+  print DEBUG "\nAPAIR: $apair\n";
+  @apair_split = split  /-|_/, $apair; #converts string into list of substrings
+
+  for ($k=0; $k<$n_units; $k++) { #go through each base unit to find base transition
+    if ($apair_split[$k] ne $apair_split[$k+$n_units+1] ){ #compare base units of each states. "+1" term skips over 'AND'
+      @apair_trans = ("$apair_split[$k]","$apair_split[$k+$n_units+1]"); #save transition base units for comparision later "key transition"
+      print DEBUG "A Base transition: $apair_trans[0] $apair_trans[1]\n";
+      $apair_split[$k] = "XX"; #replace transition with XXs (so we can check if equal with second transition state)
+      $apair_split[$k+$n_units+1] = "XX";
+    }
+  }
+
+  for ( $j=$i+1; $j<@barkeys; $j++ ) {
+     $bpair = $barkeys[$j]; #pick another barrier
+     print DEBUG "BPAIR: $bpair\n";
+     @bpair_split = split  /-|_/, $bpair;
+     $apair_tmp = $apair;
+     $bpair_tmp = $bpair;
+     $both_trans = "$apair to $bpair";
+
+     $if_equiv = 0; #if_equiv = 1 if two transition states are equivalent
+     $equal_base_count = 0; #tracks the number of base units that are equal/equiv
+
+     if ( $apair ne $bpair ) {#don't compare the same transitions
+
+       if ( $bpair =~ m/$apair_trans[0]/ && $bpair =~ m/$apair_trans[1]/){ # check if second pair has same "key transition"
+
+            for ($k=0; $k<$n_units; $k++) { #go through each base unit to find base transition
+              if ($bpair_split[$k] ne $bpair_split[$k+$n_units+1] ){ #compare base units of each states. "+1" term skips over 'AND'
+                @bpair_trans = ("$bpair_split[$k]","$bpair_split[$k+$n_units+1]"); #save transition base units for comparision later "key transition"
+                print DEBUG "B Base transition: $bpair_trans[0] $bpair_trans[1]\n";
+                $bpair_split[$k] = "XX"; #replace transition with XXs (so we can check if equal with second transition state)
+                $bpair_split[$k+$n_units+1] = "XX";
+              }
+            }
+
+           for ($m=0; $m<$n_units; $m++){ #only one base transitions => the remaining bases are unchanged => only check 4 bases
+               if ($apair_split[$m] eq $bpair_split[$m] ){ #check for equal bases
+                   $equal_base_count++;
+                } else { #check for equivalent bases
+                       for ($n=0; $n<@tied_bases; $n++) {
+                            if ( (grep /$apair_split[$m]/, @{$tied_bases[$n]}) && (grep /$bpair_split[$m]/, @{$tied_bases[$n]}) ){
+                                $equal_base_count++;
+                            }
+                       }
+               } # end of else { #check for equivalent bases
+           }
+
+      }
+      else {
+        if ($proof == 1) { #if psuedo equivalent, will set apair and bpair to XF NX XX XX
+        $psuedo_equiv = 0;
+
+        for ($k=0; $k<$n_units; $k++) { #go through each base unit to find base transition
+          if ($bpair_split[$k] ne $bpair_split[$k+$n_units+1] ){ #compare base units of each states. "+1" term skips over 'AND'
+            @bpair_trans = ("$bpair_split[$k]","$bpair_split[$k+$n_units+1]"); #save transition base units for comparision later "key transition"
+            print DEBUG "B Base transition: $bpair_trans[0] $bpair_trans[1]\n";
+            $bpair_split[$k] = "XX"; #replace transition with XXs (so we can check if equal with second transition state)
+            $bpair_split[$k+$n_units+1] = "XX";
+          }
+        }
+        
+        foreach $tlist (@tied_for_bind){
+          #print DEBUG "tlist $$tlist[0] $$tlist[1] \n";
+
+
+          if ( ( $$tlist[0] =~ m/$apair_trans[0]/ && $$tlist[0] =~ m/$apair_trans[1]/) && ( $$tlist[1] =~ m/$bpair_trans[0]/ && $$tlist[1] =~ m/$bpair_trans[1]/) )  {
+            print DEBUG "psuedo-equivalent base unit transition! $apair_trans[0] $apair_trans[1] is in $$tlist[0] AND $bpair_trans[0] $bpair_trans[1] is in $$tlist[1]\n";
+            #need to set apair and bpair split last 2 terms to XX
+            $psuedo_equiv = 1;
+            $equal_base_count = 2;
+          } elsif ( ( $$tlist[1] =~ m/$apair_trans[0]/ && $$tlist[1] =~ m/$apair_trans[1]/) && ( $$tlist[0] =~ m/$bpair_trans[0]/ && $$tlist[0] =~ m/$bpair_trans[1]/) ) {
+            print DEBUG "psuedo-equivalent base unit transition! $apair_trans[0] $apair_trans[1] is in $$tlist[1] AND $bpair_trans[0] $bpair_trans[1] is in $$tlist[0]\n";
+            $psuedo_equiv = 1;
+            $equal_base_count = 2;
+          }
+        }
+        if ($psuedo_equiv == 1){
+
+          for ($m=0; $m<($n_units-2); $m++){ #last two are equivalent (so skip)
+              if ($apair_split[$m] eq $bpair_split[$m] ){ #check for equal bases
+                  $equal_base_count++;
+               } else { #check for equivalent bases
+                      for ($n=0; $n<@tied_bases; $n++) {
+                           if ( (grep /$apair_split[$m]/, @{$tied_bases[$n]}) && (grep /$bpair_split[$m]/, @{$tied_bases[$n]}) ){
+                               $equal_base_count++;
+                           }
+                      }
+              } # end of else { #check for equivalent bases
+          }
+        } # end of if ($psuedo_equiv==1)
+      print DEBUG "equal base count = $equal_base_count\n";
+      } # end of if ($proofreading)
+     } # end of else
+     } # end of if ( $apair ne $bpair )
+
+     if ($equal_base_count eq $n_units){ #each base unit must match
+         $if_equiv = 1;
+     }
+
+     if ( $if_equiv==1 ) {
+        $etcount ++ ;
+        print ".. Equivalent transition $etcount: $both_trans\n";
+        print DEBUG ".. Equivalent transition $etcount: $both_trans\n";
+        push @equiv_transns, [ $apair, $bpair ];
+
+        push @tmp_transition_state_list, $apair;
+        push @tmp_transition_state_list, $bpair;
+        $equiv_tansns_name = "$apair $bpair";
+        $hash_equiv_transns{"$equiv_tansns_name"} = "1";
+
+     }
+  } # end of j loop
+} # end of i loop
+
+
+=pod
 # find equivalent transitions
 print "\nFinding equivalent transitions\n";
 @equiv_transns = ();
 $etcount = 0;
 for ( $i=0; $i<@barkeys; $i++ ) {
-  $apair = $barkeys[$i];
+  $apair = $barkeys[$i]; #pick a barrier transition
+  print DEBUG "\nAPAIR: $apair\n";
   for ( $j=$i+1; $j<@barkeys; $j++ ) {
-     $bpair = $barkeys[$j];
+     $bpair = $barkeys[$j]; #pick another barrier transitions
+     print DEBUG "BPAIR: $bpair\n";
      $if_equiv = 0;
      if ( $apair ne $bpair ) {
-        $both_trans = $apair . "_ALSO_" . $bpair;
+        $both_trans = $apair . "_ALSO_" . $bpair; #combine both barrier transitions
+        print DEBUG "both_trans = $both_trans\n";
         #print "Checking $both_trans\n";
         $itmp = 0;
         foreach $tlist ( @tied_states_tr ) { # now all are two element arrays
            $aname = $$tlist[0]; $bname = $$tlist[1];
+           print DEBUG "aname:$aname bname:$bname\n";
            if ( $both_trans =~ $aname && $both_trans =~ $bname ) {
               #print "... at least one match: itmp=$itmp\n";
+              print DEBUG "MATCH! $aname and $bname are in $both_trans\n";
               $qtmp = 0;
               foreach $ulist ( @tied_states_tr ) { # now all are two element arrays
                  unless ( $qtmp==$itmp ) { # check for match in another tied list
                     $cname = $$ulist[0]; $dname = $$ulist[1];
                     if ( $both_trans =~ $cname && $both_trans =~ $dname ) {
                        #print "... ... Could it be real?!?   qtmp=$qtmp\n";
+                         print DEBUG "2 MATCH! $cname and $dname are in $both_trans\n";
                        $if_equiv = 1;
                     }
                  }
@@ -619,18 +759,66 @@ for ( $i=0; $i<@barkeys; $i++ ) {
      if ( $if_equiv==1 ) {
         $etcount ++ ;
         print ".. Equivalent transition $etcount: $both_trans\n";
+        print DEBUG ".. Equivalent transition $etcount: $both_trans\n";
         push @equiv_transns, [ $apair, $bpair ];
 
+        push @tmp_transition_state_list, $apair;
+        push @tmp_transition_state_list, $bpair;
+        $equiv_tansns_name = "$apair $bpair";
+        $hash_equiv_transns{"$equiv_tansns_name"} = "1";
      }
   } # end of j loop
 } # end of i loop
+=cut
+
+
+
+
+my %tmp_hash_of_transition_states = map { $_, 1 } @tmp_transition_state_list;
+@transition_state_list = keys %tmp_hash_of_transition_states;
+
+$n_transition_states = @transition_state_list;
+print DEBUG "n transition states $n_transition_states \n";
+
+my @transition_adjacent_matrix = ();
+push @transition_adjacent_matrix, [(0)x$n_transition_states] for (1..$n_transition_states);
+
+my @transition_energy_matrix = ();
+push @transition_energy_matrix, [(0)x$n_transition_states] for (1..$n_transition_states);
+
+print DEBUG "empty transition adjacent matrix:\n".Dumper(@transition_adjacent_matrix);
+
+for ( $i=0; $i<@transition_state_list; $i++ ) {
+    for ($j=$i+1; $j<@transition_state_list; $j++){
+        #check if both transition states are in dictionary
+        $transition_energy_matrix[$i][$j] = $ebars{$transition_state_list[$j]}-$ebars{$transition_state_list[$i]};
+        $transition_energy_matrix[$j][$i] = $ebars{$transition_state_list[$i]}-$ebars{$transition_state_list[$j]};
+        $key1 = "$transition_state_list[$i] $transition_state_list[$j]";
+        $key2 = "$transition_state_list[$j] $transition_state_list[$i]";
+        if ( (exists($hash_equiv_transns{$key1})) or (exists($hash_equiv_transns{$key2})) ) {
+            print DEBUG "at i,j = $i,$j equivalent transition found! $key1 \n";
+            $transition_adjacent_matrix[$i][$j] = 1;
+            $transition_adjacent_matrix[$j][$i] = 1;
+        }
+    }
+}
+matrix_to_csv(\@transition_adjacent_matrix, "transition_state_adjacent_matrix.csv", $n_transition_states, \@transition_state_list);
+matrix_to_csv(\@transition_energy_matrix, "transition_state_energy_matrix.csv", $n_transition_states, \@transition_state_list);
+#print DEBUG "hash_equiv_transns:\n".Dumper(%hash_equiv_transns);
+#print DEBUG "tmp_transition_names_list:\n".Dumper(@tmp_transition_state_list);
+#print DEBUG "transition_names_list:\n".Dumper(@transition_state_list);
+print DEBUG "transition_adjacent_matrix:\n".Dumper(@transition_adjacent_matrix);
+
 
 # Information for maintaining equivalent barrier heights for equivalent transitions
 # Makes lists of equivalent barriers (transitions)
 @equiv_lists_tr = @{ equiv_list_from_pairs( \@equiv_transns ) };
 
+
 print DEBUG "equiv_transns:\n".Dumper(@equiv_transns);
 print DEBUG "equiv_lists_tr:\n".Dumper(@equiv_lists_tr);
+
+#matrix_to_csv(\@transition_adjacent_matrix, "transition_adjacent_matrix.csv",$nstates, \@snames );
 
 print "\nLists of equivalent transitions\n";
 foreach $list ( @equiv_lists_tr ) {
@@ -1529,24 +1717,24 @@ sub matrix_to_csv {
   my $n_dim = $_[2];
   my @n_labels = @{$_[3]};
 
-  open(MATRIX2, "> $matrix_file_name");
+  open(MATRIX_CSV, "> $matrix_file_name") or die "cannot open file for matrix to csv";
   for ($i = 0; $i < $n_dim; $i++){
       if ($i==0){
-        print MATRIX2 " , $n_labels[$i], ";
+        print MATRIX_CSV " , $n_labels[$i], ";
       }
       elsif ($i < $n_dim && $i >= 1){
-          print MATRIX2 "$n_labels[$i], ";
+          print MATRIX_CSV "$n_labels[$i], ";
       }
     }
-  print MATRIX2 "\n";
+  print MATRIX_CSV "\n";
   for ($i = 0; $i < $n_dim; $i++){
-      print MATRIX2 "$n_labels[$i], ";
+      print MATRIX_CSV "$n_labels[$i], ";
     for ($j = 0; $j < $n_dim; $j++ ){
-        print MATRIX2 "$matrix_to_export[$i][$j], " ;
+        print MATRIX_CSV "$matrix_to_export[$i][$j], " ;
     }
-  print MATRIX2 "\n";
+  print MATRIX_CSV "\n";
   }
-  close(MATRIX2);
+  close(MATRIX_CSV);
 }
 
 #this script loads in adjacency matrix (in .csv format)from proof-maker
@@ -1560,7 +1748,7 @@ sub python_networkx {
 sub import_from_python {
     my $filename = "python_to_perl";
 
-    open my $fh2, "<", $filename or die "Could not open file '$filename' $!";
+    open my $fh2, "<", $filename or die "Could not open file '$filename' ";
     my $flag = <$fh2>;
     print "$flag\n";
 
