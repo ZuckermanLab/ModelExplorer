@@ -4,6 +4,8 @@ README.txt written by August George with help from Dr. Zuckerman.
 Proof-maker.prl written by Dr. Zuckerman and updated/modified by August George.
 Analyze-model.prl written by Dr. Zuckerman and updated/modified by August George. 
 
+nov. 22 update: transition groupings have been corrected. working on validating with python script and testing data output. 
+
 Last updated: Nov. 1, 2017 - energy bug is fixed! ALSO NEED TO CHANGE BARRIERS/TRANSITIONS
 
 !BUG! - energy bug is fixed!. Now checking barrier energies for similar bug... Energies are properly restored after rejection step, but might still have incorrect groupings.
@@ -230,6 +232,12 @@ For a more in-depth discussion on statistcal mechanics methods applied to cell b
 
 
 8. BUGS/To-Do:
+
+W vs S binding on or off rate being changed? Does it depend on relative values? 
+
+Does Monte Carlo change the slowies? 
+
+Fix equivalent transitions (proof-reading section) subroutine to be cleaner (some how replace "n_bases - 2" )
 
 !BUG! - NEED TO FIX TRANSITION BARRIER GROUPINGS! 
 
