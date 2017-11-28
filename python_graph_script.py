@@ -14,19 +14,45 @@
 #
 # IN PROGRESS: Adding transition/barriers
 
+#todo: check  subgraphs, pruned graphs, and output data
+
 from numpy import genfromtxt
 import numpy as np
 import matplotlib.pyplot as plt
 import networkx as nx
 import json
+import pprint
 
 # creates adjacency graph from adjacency matrix
 def adjacency_matrix_to_graph(ADJACENCY_MATRIX):
 	adj = ADJACENCY_MATRIX
+
+	print("adj matrix")
+	pprint.pprint(adj)
+
 	rows, cols = np.where(adj == 1) # finds row & col elements that are connected
+
+	print("rows")
+	pprint.pprint(rows)
+	print("cols")
+	pprint.pprint(cols)
+
 	edges = zip(rows.tolist(), cols.tolist()) #creates a list of tuples from row & col lists
+
+	print("edges")
+	pprint.pprint(edges)
+
 	gr = nx.Graph() # creates a networkx graph var
+
+	print ("gr")
+	pprint.pprint(gr)
+
 	gr.add_edges_from(edges) # adds edges to graph (i.e. creates the graph)
+
+	print("gr add edges")
+	pprint.pprint(gr)
+
+
 	return gr
 
 # creates list of connected components (i.e. subgraphs, retaining graph info)
@@ -72,20 +98,38 @@ def import_and_format_data(ADJACENCY_FILE,ENERGIES_FILE, TRANSITION_ADJACENCY_FI
 	raw_adjacency_data = np.genfromtxt(ADJACENCY_FILE, delimiter=',', dtype=None) #guesses data type (is slower)
 	raw_energies_data = np.genfromtxt(ENERGIES_FILE, delimiter=',', dtype=None)
 	raw_transition_adjacency_data = np.genfromtxt(TRANSITION_ADJACENCY_FILE, delimiter=',', dtype=None)
-	raw_transition_energies_data = np.genfromtxt(ENERGIES_FILE, delimiter=',', dtype=None)
+	raw_transition_energies_data = np.genfromtxt(TRANSITION_ENERGY_FILE, delimiter=',', dtype=None)
+
+	print("raw_transition_adjacency_data")
+	np.set_printoptions(threshold='nan')
+	pprint.pprint(raw_transition_adjacency_data)
 
 	label_data = raw_adjacency_data[1:, 0:1].tolist() #labels from only first column, each row after first row
 	n = len(label_data) #dimension of nxn matrix = number of labels
-	transition_label_data = raw_adjacency_data[1:, 0:1].tolist()
+
+	transition_label_data = raw_transition_adjacency_data[1:, 0:1].tolist()
 	transition_n = len(transition_label_data)
+
+	print("transition_label_data")
+	np.set_printoptions(threshold='nan')
+	pprint.pprint(transition_n)
+	pprint.pprint(transition_label_data)
 
 	init_adjacency_matrix = raw_adjacency_data[1:n+1,1:n+1].astype(np.int) #skip labels, ends before null char, make list
 	init_energies_matrix = raw_energies_data[1:n+1,1:n+1].astype(np.float) # matrix[x][y] is value at row x, col y
-	init_transition_adjacency_matrix = raw_energies_data[1:n+1,1:n+1].astype(np.float)
-	init_transitions_energies_matrix = raw_transition_energies_data[1:n+1,1:n+1].astype(np.float) # matrix[x][y] is value at row x, col y
+	init_transition_adjacency_matrix = raw_transition_adjacency_data[1:transition_n+1,1:transition_n+1].astype(np.int) #skip labels, ends before null char, make list
+	init_transitions_energies_matrix = raw_transition_energies_data[1:transition_n+1,1:transition_n+1].astype(np.float) # matrix[x][y] is value at row x, col y
+
+	print("init_transition_adjacency_matrix")
+	np.set_printoptions(threshold='nan')
+	pprint.pprint(init_transition_adjacency_matrix)
 
 	init_labels = dict(zip(xrange(n), sum(label_data, [])[:])) #"flattens" list of lists into a single list
-	init_transition_labels = dict(zip(xrange(n), sum(transition_label_data, [])[:]))
+	init_transition_labels = dict(zip(xrange(transition_n), sum(transition_label_data, [])[:]))
+
+	print("init transition labels")
+	np.set_printoptions(threshold='nan')
+	pprint.pprint(init_transition_labels)
 
 	return (init_adjacency_matrix, init_energies_matrix, init_labels, init_transition_adjacency_matrix, init_transitions_energies_matrix, init_transition_labels)
 
@@ -172,7 +216,7 @@ def main():
 	adjacency_file = "adjacent_matrix.csv"
 	energies_file = "energies_matrix.csv"
 	transition_adjacency_file = "transition_state_adjacent_matrix.csv"
-	transition_energy_file = "transition_energy_matrix.csv"
+	transition_energy_file = "transition_state_energy_matrix.csv"
 
 	error = False #error flag to send back to perl
 	master_dictionary = {} # store all subgraph data into one dictionary that then gets exported into perl. The subgraph "energy landscape" to be used by perl
@@ -180,17 +224,32 @@ def main():
 	master_transition_dictionary = {} # store all subgraph data into one dictionary that then gets exported into perl. The subgraph "energy landscape" to be used by perl
 	master_transition_subgraph_list = [] # store a list of states of each connected subgraph, to be used by perl
 
+	print("importing and formating data...")
+	(adjacency_matrix, energy_matrix, state_labels, transition_adjacency_matrix, transition_energy_matrix, transition_labels) = import_and_format_data(adjacency_file, energies_file, transition_adjacency_file, transition_energy_file) #import and format data
 
-	(adjacency_matrix, energy_matrix, state_labels, transition_adjacency_matrix, transition_energy_file, transition_labels) = import_and_format_data(adjacency_file, energies_file, transition_adjacency_file, transition_energy_file) #import and format data
+	np.set_printoptions(threshold='nan')
+	print("transition_adjacency_matrix main")
+	pprint.pprint(transition_adjacency_matrix)
+
+	print("state adjacency matrix to graph...")
 	adjacency_graph = adjacency_matrix_to_graph(adjacency_matrix) #create adjacency graph
 
+	print("transition adjacency matrix to graph...")
 	transition_adjacency_graph = adjacency_matrix_to_graph(transition_adjacency_matrix)
 
-	#draw_and_save_graph(transition_adjacency_graph, "adjacency_graph")
+	print("transition_adjacency_graph main")
+	pprint.pprint(transition_adjacency_graph)
 
+	print("transition energy matrix")
+	pprint.pprint(transition_energy_matrix)
+
+	draw_and_save_graph(transition_adjacency_graph, "transition_adjacency_graph")
+
+	print("graphs to subgraphs...")
 	subgraphs = graph_to_subgraph(adjacency_graph) #create subgraphs
 	transition_subgraphs = graph_to_subgraph(transition_adjacency_graph)
 
+	print("check and prune subgraphs...")
 	for k in xrange(len(subgraphs)): #loop through each subgraph
 		print "checking subgraph %s" % k
 		(pruned_graph, consistent) = check_and_prune_cycle(subgraphs[k],energy_matrix) #set constistency flag for each subgraph

@@ -496,10 +496,7 @@ matrix_to_csv(\@state_adjacent_matrix, "adjacent_matrix.csv", $nstates, \@snames
 matrix_to_csv(\@state_relative_energy, "energies_matrix.csv", $nstates, \@snames);
 
 
-# uses python script to generate (from graph) connected states/energies and initialize MC model
-python_networkx();
-my $connected_states = import_from_python();
-initial_model($connected_states);
+
 
 # overall initializations (prior to MC loop)
 @rates = ();
@@ -591,8 +588,8 @@ for ( $i=0; $i<@barkeys; $i++ ) {
      $bpair = $barkeys[$j]; #pick another barrier
      print DEBUG "BPAIR: $bpair\n";
      @bpair_split = split  /-|_/, $bpair;
-     $apair_tmp = $apair;
-     $bpair_tmp = $bpair;
+     #$apair_tmp = $apair;
+     #$bpair_tmp = $bpair;
      $both_trans = "$apair to $bpair";
 
      $if_equiv = 0; #if_equiv = 1 if two transition states are equivalent
@@ -636,7 +633,7 @@ for ( $i=0; $i<@barkeys; $i++ ) {
             $bpair_split[$k+$n_units+1] = "XX";
           }
         }
-        
+
         foreach $tlist (@tied_for_bind){
           #print DEBUG "tlist $$tlist[0] $$tlist[1] \n";
 
@@ -654,7 +651,7 @@ for ( $i=0; $i<@barkeys; $i++ ) {
         }
         if ($psuedo_equiv == 1){
 
-          for ($m=0; $m<($n_units-2); $m++){ #last two are equivalent (so skip)
+          for ($m=0; $m<($n_units-2); $m++){ #last two are equivalent (so skip, ASSUMES psuedo equiv are at the end!)
               if ($apair_split[$m] eq $bpair_split[$m] ){ #check for equal bases
                   $equal_base_count++;
                } else { #check for equivalent bases
@@ -689,89 +686,6 @@ for ( $i=0; $i<@barkeys; $i++ ) {
      }
   } # end of j loop
 } # end of i loop
-
-
-=pod
-# find equivalent transitions
-print "\nFinding equivalent transitions\n";
-@equiv_transns = ();
-$etcount = 0;
-for ( $i=0; $i<@barkeys; $i++ ) {
-  $apair = $barkeys[$i]; #pick a barrier transition
-  print DEBUG "\nAPAIR: $apair\n";
-  for ( $j=$i+1; $j<@barkeys; $j++ ) {
-     $bpair = $barkeys[$j]; #pick another barrier transitions
-     print DEBUG "BPAIR: $bpair\n";
-     $if_equiv = 0;
-     if ( $apair ne $bpair ) {
-        $both_trans = $apair . "_ALSO_" . $bpair; #combine both barrier transitions
-        print DEBUG "both_trans = $both_trans\n";
-        #print "Checking $both_trans\n";
-        $itmp = 0;
-        foreach $tlist ( @tied_states_tr ) { # now all are two element arrays
-           $aname = $$tlist[0]; $bname = $$tlist[1];
-           print DEBUG "aname:$aname bname:$bname\n";
-           if ( $both_trans =~ $aname && $both_trans =~ $bname ) {
-              #print "... at least one match: itmp=$itmp\n";
-              print DEBUG "MATCH! $aname and $bname are in $both_trans\n";
-              $qtmp = 0;
-              foreach $ulist ( @tied_states_tr ) { # now all are two element arrays
-                 unless ( $qtmp==$itmp ) { # check for match in another tied list
-                    $cname = $$ulist[0]; $dname = $$ulist[1];
-                    if ( $both_trans =~ $cname && $both_trans =~ $dname ) {
-                       #print "... ... Could it be real?!?   qtmp=$qtmp\n";
-                         print DEBUG "2 MATCH! $cname and $dname are in $both_trans\n";
-                       $if_equiv = 1;
-                    }
-                 }
-              $qtmp ++ ;
-              }
-           }
-           $itmp ++ ;
-        } # end of foreach $tlist ( @tied_states_tr )
-        if ( $proof==1 ) { # add same barrier for toxin/substrate (un)binding
-           foreach $tlist ( @tied_for_bind ) { # now all are two element arrays
-              #print "Checking $apair and $bpair\n";
-              $aname = $$tlist[0]; $bname = $$tlist[1]; $cname = $$tlist[2]; $dname = $$tlist[3];
-              if    ( $apair =~ $aname && $apair =~ $bname  && $bpair =~ $cname && $bpair =~ $dname ) {
-                 $apair_copy = $apair; $bpair_copy = $bpair;
-                 $apair_copy=~ s/$aname/XX/;  $apair_copy =~ s/$bname/XX/;
-                 $bpair_copy=~ s/$cname/XX/;  $bpair_copy =~ s/$dname/XX/;
-                 #print "... after subs: $apair_copy and $bpair_copy\n";
-                 if ( $apair_copy eq $bpair_copy ) {
-                    $if_equiv = 1;
-                    print "Found proofreading pseudo-equivalent pair: $both_trans\n";
-                 }
-              }
-              elsif ( $bpair =~ $aname && $bpair =~ $bname  && $apair =~ $cname && $apair =~ $dname ) {
-                 $apair_copy = $apair; $bpair_copy = $bpair;
-                 $bpair_copy=~ s/$aname/XX/;  $bpair_copy =~ s/$bname/XX/;
-                 $apair_copy=~ s/$cname/XX/;  $apair_copy =~ s/$dname/XX/;
-                 #print "... after subs: $apair_copy and $bpair_copy\n";
-                 if ( $apair_copy eq $bpair_copy ) {
-                    $if_equiv = 1;
-                    print "Found proofreading pseudo-equivalent pair: $both_trans\n";
-                 }
-              }
-           } # end of foreach $tlist ( @tied_for_bind )
-        }
-     } # end of if ( $apair ne $bpair )
-     if ( $if_equiv==1 ) {
-        $etcount ++ ;
-        print ".. Equivalent transition $etcount: $both_trans\n";
-        print DEBUG ".. Equivalent transition $etcount: $both_trans\n";
-        push @equiv_transns, [ $apair, $bpair ];
-
-        push @tmp_transition_state_list, $apair;
-        push @tmp_transition_state_list, $bpair;
-        $equiv_tansns_name = "$apair $bpair";
-        $hash_equiv_transns{"$equiv_tansns_name"} = "1";
-     }
-  } # end of j loop
-} # end of i loop
-=cut
-
-
 
 
 my %tmp_hash_of_transition_states = map { $_, 1 } @tmp_transition_state_list;
@@ -824,6 +738,11 @@ print "\nLists of equivalent transitions\n";
 foreach $list ( @equiv_lists_tr ) {
   print "Equiv list: @{$list}\n";
 }
+
+# uses python script to generate (from graph) connected states/energies and initialize MC model
+python_networkx();
+my $connected_states = import_from_python();
+initial_model($connected_states);
 
 # Put the same info into more useful hashes
 ( $ref_one, $ref_two ) = equiv_hashes_from_list ( \@equiv_lists_tr );
