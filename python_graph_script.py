@@ -70,17 +70,17 @@ def check_and_prune_cycle(SUB_ADJACENCY_GRAPH,ENERGIES_MATRIX):
 	try: #check if there is a cycle at all
 		cycle = list(nx.find_cycle(gr)) #lists cycle by edges (i.e. [(a,b),(b,c),(c,a)])
 	except nx.exception.NetworkXNoCycle: #catch error if there is no cycle found
-		cycle = False #no cycles => cannot check for consistency, exit
+		cycle = False
 		consistent = "No cycles to check for consistency"
-		return gr, consistent
+		return gr, consistent #no cycles => cannot check for consistency, exit
 	while cycle: #while there is a cycle in the cycle list
 		for j in xrange(len(cycle)): #sum energy around loop
 			en_sum = en_sum + en[cycle[j][0]][cycle[j][1]] #sum energy for given edge, note: using energies[x][y] => edge (x->y)
 		if (en_sum !=0): #if sum of energy is not zero, cycle is inconsistent
 			en_sum = 0
-			cycle = False #exit
+			cycle = False
 			consistent = ""
-			return gr, consistent
+			return gr, consistent #cycle is inconsistent, exit
 		else:
 			gr.remove_edge(cycle[0][0],cycle[0][1]) #removes first edge
 			en_sum = 0
@@ -166,25 +166,28 @@ def draw_and_save_graph(GRAPH, FILENAME, TEXT_LABELS={}):
 #where the key is the reference state (first node). Also, updates master dictionary  and master list of states (for use in multiple subgraphs)
 #note: for a tree graph there is only one path between two nodes
 def graph_to_data(TREE_GRAPH, ENERGIES, LABELS, MASTER_DICTIONARY, MASTER_SUBGRAPH_LIST):
-	gr = TREE_GRAPH
+	gr = TREE_GRAPH #must use tree type data structure
 	en = ENERGIES
 	lbls = LABELS
 	master_dictionary = MASTER_DICTIONARY # dictionary with keys being first node of a subgraph and values being dictionary of states and relative energies
 	master_subgraph_list = MASTER_SUBGRAPH_LIST # list of lists containng tied state names for a subgraph
 	data = {} #dictionary containing energy landscape
-	labeled_data = {} #replaces node numbers with state names (using labels list)
 	label_list = [] #list of state labels
+	labeled_data = {} #replaces node numbers with state names (using labels list)
 	node_list = list(gr.nodes()) # creates list of nodes in subgraph
+
 	for node in node_list: # goes through each node
 		label_list.append(lbls[node]) #creates list of labels in subgraph
 		if node == node_list[0]: #first node in list
 			data[node_list[0]] = 0.0 #set reference node to 0 energy compared to itself (by definition)
 			labeled_data[lbls[node_list[0]]] = 0.0
 		else:
-			path = nx.shortest_path(gr, source = node_list[0], target = node) #find path between reference node and target node
+			path = nx.shortest_path(gr, source = node_list[0], target = node) #find path between reference node and target node (list of nodes)
+			print("path %s" % path)
 			relative_energy = 0.0 #initlilize relative energy running total
 			for i in xrange(len(path)-1): #for each edge in path
 				relative_energy = relative_energy + en[path[i]][path[i+1]] # add energy along path to previous energy. note using en[x][y] => edge(x->y)
+				print("relative_energy %s" % relative_energy)
 			data[path[len(path)-1]] = relative_energy #add to dictionary. key = last node in path, value = relative energies added along path
 			labeled_data[lbls[path[len(path)-1]]] = relative_energy
 	master_dictionary[lbls[node_list[0]]] = labeled_data # add to master dictionary. key = first node, value = dictionary of nodes and relative energies (energy landscape)
@@ -203,7 +206,7 @@ def export_to_file(DATA,DATA2,FLAG, FILENAME):
 	file.write("%s\n\n" %data2)
 	file.close()
 
-	with open('data.json', 'w') as outfile:
+	with open('%s.json' %filename, 'w') as outfile:
 		json.dump(data, outfile)
 
 #generate data for testing. under development
@@ -244,12 +247,14 @@ def main():
 	pprint.pprint(transition_energy_matrix)
 
 	draw_and_save_graph(transition_adjacency_graph, "transition_adjacency_graph")
+	draw_and_save_graph(adjacency_graph, "adjacency_graph")
 
 	print("graphs to subgraphs...")
 	subgraphs = graph_to_subgraph(adjacency_graph) #create subgraphs
 	transition_subgraphs = graph_to_subgraph(transition_adjacency_graph)
 
 	print("check and prune subgraphs...")
+	print("checking state subgraphs...")
 	for k in xrange(len(subgraphs)): #loop through each subgraph
 		print "checking subgraph %s" % k
 		(pruned_graph, consistent) = check_and_prune_cycle(subgraphs[k],energy_matrix) #set constistency flag for each subgraph
@@ -259,8 +264,10 @@ def main():
 		else:
 			print consistent #cycle is consistent or there are no cycles
 		graph_to_data(pruned_graph,energy_matrix,state_labels, master_dictionary, master_subgraph_list) #adds to master dictionary and list
-	export_to_file(master_dictionary,master_subgraph_list,error,"python_to_perl") #exports master dictionary and list
+	export_to_file(master_dictionary,master_subgraph_list,error,"python_to_perl_state") #exports master dictionary and list
 
+	error = False
+	print("checking transition state subgraphs...")
 	for k in xrange(len(transition_subgraphs)): #loop through each subgraph
 		print "checking subgraph %s" % k
 		(transition_pruned_graph, consistent) = check_and_prune_cycle(transition_subgraphs[k],transition_energy_matrix) #set constistency flag for each subgraph
@@ -270,7 +277,7 @@ def main():
 		else:
 			print consistent #cycle is consistent or there are no cycles
 		graph_to_data(transition_pruned_graph,transition_energy_matrix,transition_labels, master_transition_dictionary, master_transition_subgraph_list) #adds to master dictionary and list
-	export_to_file(master_transition_dictionary,master_transition_subgraph_list,error,"python_to_perl_t") #exports master dictionary and list
+	export_to_file(master_transition_dictionary,master_transition_subgraph_list,error,"python_to_perl_transition") #exports master dictionary and list
 
 
 if __name__ == "__main__": #best practice to use main

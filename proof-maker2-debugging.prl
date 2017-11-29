@@ -536,6 +536,7 @@ print "\n";
 initialize_barriers(); # defines hash of barrier heights, ebars
 @barkeys = keys %ebars;
 
+
 # correct barrier energies based on tied states
 print "\n";
 foreach $tlist ( @tied_states_tr ) { # now all are two element arrays
@@ -556,7 +557,6 @@ foreach $pair ( @barkeys ) {
 }
 
 
-
 my @tmp_transition_state_list = ();
 my @transition_state_list = ();
 my %hash_equiv_transns = ();
@@ -572,13 +572,13 @@ $etcount = 0; #tracks number of equivalent transitions
 
 for ( $i=0; $i<@barkeys; $i++ ) {
   $apair = $barkeys[$i]; #pick a barrier (i.e. transition state)
-  print DEBUG "\nAPAIR: $apair\n";
+  #print DEBUG "\nAPAIR: $apair\n";
   @apair_split = split  /-|_/, $apair; #converts string into list of substrings
 
   for ($k=0; $k<$n_units; $k++) { #go through each base unit to find base transition
     if ($apair_split[$k] ne $apair_split[$k+$n_units+1] ){ #compare base units of each states. "+1" term skips over 'AND'
       @apair_trans = ("$apair_split[$k]","$apair_split[$k+$n_units+1]"); #save transition base units for comparision later "key transition"
-      print DEBUG "A Base transition: $apair_trans[0] $apair_trans[1]\n";
+      #print DEBUG "A Base transition: $apair_trans[0] $apair_trans[1]\n";
       $apair_split[$k] = "XX"; #replace transition with XXs (so we can check if equal with second transition state)
       $apair_split[$k+$n_units+1] = "XX";
     }
@@ -586,7 +586,7 @@ for ( $i=0; $i<@barkeys; $i++ ) {
 
   for ( $j=$i+1; $j<@barkeys; $j++ ) {
      $bpair = $barkeys[$j]; #pick another barrier
-     print DEBUG "BPAIR: $bpair\n";
+     #print DEBUG "BPAIR: $bpair\n";
      @bpair_split = split  /-|_/, $bpair;
      #$apair_tmp = $apair;
      #$bpair_tmp = $bpair;
@@ -602,7 +602,7 @@ for ( $i=0; $i<@barkeys; $i++ ) {
             for ($k=0; $k<$n_units; $k++) { #go through each base unit to find base transition
               if ($bpair_split[$k] ne $bpair_split[$k+$n_units+1] ){ #compare base units of each states. "+1" term skips over 'AND'
                 @bpair_trans = ("$bpair_split[$k]","$bpair_split[$k+$n_units+1]"); #save transition base units for comparision later "key transition"
-                print DEBUG "B Base transition: $bpair_trans[0] $bpair_trans[1]\n";
+                #print DEBUG "B Base transition: $bpair_trans[0] $bpair_trans[1]\n";
                 $bpair_split[$k] = "XX"; #replace transition with XXs (so we can check if equal with second transition state)
                 $bpair_split[$k+$n_units+1] = "XX";
               }
@@ -628,7 +628,7 @@ for ( $i=0; $i<@barkeys; $i++ ) {
         for ($k=0; $k<$n_units; $k++) { #go through each base unit to find base transition
           if ($bpair_split[$k] ne $bpair_split[$k+$n_units+1] ){ #compare base units of each states. "+1" term skips over 'AND'
             @bpair_trans = ("$bpair_split[$k]","$bpair_split[$k+$n_units+1]"); #save transition base units for comparision later "key transition"
-            print DEBUG "B Base transition: $bpair_trans[0] $bpair_trans[1]\n";
+            #print DEBUG "B Base transition: $bpair_trans[0] $bpair_trans[1]\n";
             $bpair_split[$k] = "XX"; #replace transition with XXs (so we can check if equal with second transition state)
             $bpair_split[$k+$n_units+1] = "XX";
           }
@@ -639,12 +639,12 @@ for ( $i=0; $i<@barkeys; $i++ ) {
 
 
           if ( ( $$tlist[0] =~ m/$apair_trans[0]/ && $$tlist[0] =~ m/$apair_trans[1]/) && ( $$tlist[1] =~ m/$bpair_trans[0]/ && $$tlist[1] =~ m/$bpair_trans[1]/) )  {
-            print DEBUG "psuedo-equivalent base unit transition! $apair_trans[0] $apair_trans[1] is in $$tlist[0] AND $bpair_trans[0] $bpair_trans[1] is in $$tlist[1]\n";
+            #print DEBUG "psuedo-equivalent base unit transition! $apair_trans[0] $apair_trans[1] is in $$tlist[0] AND $bpair_trans[0] $bpair_trans[1] is in $$tlist[1]\n";
             #need to set apair and bpair split last 2 terms to XX
             $psuedo_equiv = 1;
             $equal_base_count = 2;
           } elsif ( ( $$tlist[1] =~ m/$apair_trans[0]/ && $$tlist[1] =~ m/$apair_trans[1]/) && ( $$tlist[0] =~ m/$bpair_trans[0]/ && $$tlist[0] =~ m/$bpair_trans[1]/) ) {
-            print DEBUG "psuedo-equivalent base unit transition! $apair_trans[0] $apair_trans[1] is in $$tlist[1] AND $bpair_trans[0] $bpair_trans[1] is in $$tlist[0]\n";
+            #print DEBUG "psuedo-equivalent base unit transition! $apair_trans[0] $apair_trans[1] is in $$tlist[1] AND $bpair_trans[0] $bpair_trans[1] is in $$tlist[0]\n";
             $psuedo_equiv = 1;
             $equal_base_count = 2;
           }
@@ -663,7 +663,7 @@ for ( $i=0; $i<@barkeys; $i++ ) {
               } # end of else { #check for equivalent bases
           }
         } # end of if ($psuedo_equiv==1)
-      print DEBUG "equal base count = $equal_base_count\n";
+      #print DEBUG "equal base count = $equal_base_count\n";
       } # end of if ($proofreading)
      } # end of else
      } # end of if ( $apair ne $bpair )
@@ -675,7 +675,7 @@ for ( $i=0; $i<@barkeys; $i++ ) {
      if ( $if_equiv==1 ) {
         $etcount ++ ;
         print ".. Equivalent transition $etcount: $both_trans\n";
-        print DEBUG ".. Equivalent transition $etcount: $both_trans\n";
+        #print DEBUG ".. Equivalent transition $etcount: $both_trans\n";
         push @equiv_transns, [ $apair, $bpair ];
 
         push @tmp_transition_state_list, $apair;
@@ -687,12 +687,12 @@ for ( $i=0; $i<@barkeys; $i++ ) {
   } # end of j loop
 } # end of i loop
 
-
+#print DEBUG "ebars\n".Dumper(%ebars);
 my %tmp_hash_of_transition_states = map { $_, 1 } @tmp_transition_state_list;
 @transition_state_list = keys %tmp_hash_of_transition_states;
 
 $n_transition_states = @transition_state_list;
-print DEBUG "n transition states $n_transition_states \n";
+#print DEBUG "n transition states $n_transition_states \n";
 
 my @transition_adjacent_matrix = ();
 push @transition_adjacent_matrix, [(0)x$n_transition_states] for (1..$n_transition_states);
@@ -700,7 +700,7 @@ push @transition_adjacent_matrix, [(0)x$n_transition_states] for (1..$n_transiti
 my @transition_energy_matrix = ();
 push @transition_energy_matrix, [(0)x$n_transition_states] for (1..$n_transition_states);
 
-print DEBUG "empty transition adjacent matrix:\n".Dumper(@transition_adjacent_matrix);
+#print DEBUG "empty transition adjacent matrix:\n".Dumper(@transition_adjacent_matrix);
 
 for ( $i=0; $i<@transition_state_list; $i++ ) {
     for ($j=$i+1; $j<@transition_state_list; $j++){
@@ -710,7 +710,7 @@ for ( $i=0; $i<@transition_state_list; $i++ ) {
         $key1 = "$transition_state_list[$i] $transition_state_list[$j]";
         $key2 = "$transition_state_list[$j] $transition_state_list[$i]";
         if ( (exists($hash_equiv_transns{$key1})) or (exists($hash_equiv_transns{$key2})) ) {
-            print DEBUG "at i,j = $i,$j equivalent transition found! $key1 \n";
+            #print DEBUG "at i,j = $i,$j equivalent transition found! $key1 \n";
             $transition_adjacent_matrix[$i][$j] = 1;
             $transition_adjacent_matrix[$j][$i] = 1;
         }
@@ -721,7 +721,7 @@ matrix_to_csv(\@transition_energy_matrix, "transition_state_energy_matrix.csv", 
 #print DEBUG "hash_equiv_transns:\n".Dumper(%hash_equiv_transns);
 #print DEBUG "tmp_transition_names_list:\n".Dumper(@tmp_transition_state_list);
 #print DEBUG "transition_names_list:\n".Dumper(@transition_state_list);
-print DEBUG "transition_adjacent_matrix:\n".Dumper(@transition_adjacent_matrix);
+#print DEBUG "transition_adjacent_matrix:\n".Dumper(@transition_adjacent_matrix);
 
 
 # Information for maintaining equivalent barrier heights for equivalent transitions
@@ -729,8 +729,8 @@ print DEBUG "transition_adjacent_matrix:\n".Dumper(@transition_adjacent_matrix);
 @equiv_lists_tr = @{ equiv_list_from_pairs( \@equiv_transns ) };
 
 
-print DEBUG "equiv_transns:\n".Dumper(@equiv_transns);
-print DEBUG "equiv_lists_tr:\n".Dumper(@equiv_lists_tr);
+#print DEBUG "equiv_transns:\n".Dumper(@equiv_transns);
+#print DEBUG "equiv_lists_tr:\n".Dumper(@equiv_lists_tr);
 
 #matrix_to_csv(\@transition_adjacent_matrix, "transition_adjacent_matrix.csv",$nstates, \@snames );
 
@@ -741,8 +741,11 @@ foreach $list ( @equiv_lists_tr ) {
 
 # uses python script to generate (from graph) connected states/energies and initialize MC model
 python_networkx();
-my $connected_states = import_from_python();
-initial_model($connected_states);
+my ($connected_states, $connected_transitions) = import_from_python();
+print "connected states\n".Dumper($connected_states);
+print "connected transitions\n".Dumper($connected_transitions);
+
+initial_model($connected_states, $connected_transitions);
 
 # Put the same info into more useful hashes
 ( $ref_one, $ref_two ) = equiv_hashes_from_list ( \@equiv_lists_tr );
@@ -754,11 +757,11 @@ initial_model($connected_states);
 
 foreach $key ( @samekeys_tr ) {
   foreach $x ( @{$same_bar{$key}} ) {
-     print DEBUG "$x is a dup of $key\n";
+     #print DEBUG "$x is a dup of $key\n";
      push @dups_tr, $x;
   }
 }
-print DEBUG "dups_tr:\n".Dumper(@dups_tr);
+#print DEBUG "dups_tr:\n".Dumper(@dups_tr);
 print "DUPLICATES of other transitions: @dups_tr\n";
 print "\n";
 
@@ -801,6 +804,7 @@ print "\nMonte Carlo loop: n = $n\n\n";
 if ( $n>0 ) {
    # choose random state or transition-state energy to perturb
    if ( rand() < 0.5 ) { # trial move is perturbation to state energy
+      #print DEBUG "pre-trial state energies = \n".Dumper(%energies);
       $state_move = 1;  # 1 for changing state, 0 for changing barrier
       $state_ok = 0; # flag for whether chosen state is in fixed list and should be excluded
       while ( $state_ok==0 ) {
@@ -815,19 +819,23 @@ if ( $n>0 ) {
       $new_energy = $old_energy + $delta_e; # perturb energy
       $energies{$tmpstate} = $new_energy; # set state's energy to new energy
       print MCFILE "Perturb state $tmpstate by delta_e=$delta_e from $old_energy to $new_energy\n";
+      #print DEBUG "Perturb state $tmpstate by delta_e=$delta_e from $old_energy to $new_energy\n";
       adjust_tied_energies2( $tmpstate, $connected_states, $delta_e);
    }
    else { # trial move is perturbation to transition-state (energy barrier) energy
+      #print DEBUG "pre-trial barrier energies = \n".Dumper(%ebars);
       $state_move = 0;
       $nbars = keys %ebars;
       $nrand = floor(rand()*$nbars); # random element of transition states array
       $bartmp = $barkeys[$nrand]; # name of transition state to be perturbed
       print MCFILE "Perturb transition state $nrand = $bartmp  with  ebar = $ebars{$bartmp}\n";
+      #print DEBUG "Perturb transition state $nrand = $bartmp  with  ebar = $ebars{$bartmp}\n";
       $delta_e = 2.0*$demax*( rand() - 0.5 ); # amount by which energy of state to be perturbed
       $old_energy = $ebars{$bartmp};
       $new_energy = $old_energy + $delta_e;
       if ( grep { $bartmp eq $_ } @slowpairs ) {
          print MCFILE "... CHANGING A SLOW TRANSN STATE\n";
+         #print DEBUG "... CHANGING A SLOW TRANSN STATE\n";
          if ( $new_energy < $ebarslow ) { $new_energy = $ebarslow; };
       }
       else {
@@ -836,6 +844,7 @@ if ( $n>0 ) {
       }
       $ebars{$bartmp} = $new_energy;
       print MCFILE "Perturb transition state $bartmp by delta_e=$delta_e from $old_energy to (non-negative) $new_energy\n";
+      #print DEBUG "Perturb transition state $bartmp by delta_e=$delta_e from $old_energy to (non-negative) $new_energy\n";
       adjust_tied_barriers( $bartmp, $new_energy );
    }
 }
@@ -1032,21 +1041,26 @@ if ( $n>0 ) { # check if move accepted
       $mc_change = 1;
       $n_accept ++; $accept_ratio = $n_accept/$n;
       print MCFILE "Move accepted!   Acceptance ratio = $accept_ratio\n";
+      #print DEBUG "Move accepted!   Acceptance ratio = $accept_ratio\n";
    }
    else { # Rejection
       $mc_change = 0;
       $accept_ratio = $n_accept/$n;
       print MCFILE "Move rejected!!!    Acceptance ratio = $accept_ratio\n";
+      #print DEBUG "Move rejected!!!    Acceptance ratio = $accept_ratio\n";
       if ( $state_move == 1 ) { # state energy was changed - change back
          $energies{$tmpstate} = $old_energy;
          print MCFILE "State rejection: Change back state $tmpstate to $energies{$tmpstate}\n";
+         #print DEBUG "State rejection: Change back state $tmpstate to $energies{$tmpstate}\n";
          adjust_tied_energies2( $tmpstate, $connected_states, (-1.0*$delta_e)); #note: negative change in energy used to reset
-
+         #print DEBUG "state energies reset = \n".Dumper(%energies);
       }
       else { # transition state energy was changed - change back
          $ebars{$bartmp} = $old_energy;
          print MCFILE "Barrier rejection: Change back transition state $bartmp to  $ebars{$bartmp}\n";
+         #print DEBUG "Barrier rejection: Change back transition state $bartmp to  $ebars{$bartmp}\n";
          adjust_tied_barriers( $bartmp, $old_energy );
+         #print DEBUG "barrier energies reset = \n".Dumper(%ebars);
       }
       $emc = $emc_old;
    }
@@ -1539,7 +1553,7 @@ sub adjust_tied_barriers {
    }
 }
 
-### Bottleneck
+### Bottleneck (only need to run once)
 sub distance {
     # the sum of element-wise differences between states,
     # accounting for adjacency of first and last elements in a cycle (unit)
@@ -1665,30 +1679,51 @@ sub python_networkx {
 };
 
 sub import_from_python {
-    my $filename = "python_to_perl";
+    my $state_filename = "python_to_perl_state";
+    my $transition_filename = "python_to_perl_transition";
 
-    open my $fh2, "<", $filename or die "Could not open file '$filename' ";
-    my $flag = <$fh2>;
-    print "$flag\n";
+    open my $fh2, "<", $state_filename or die "Could not open file '$state_filename' ";
+    my $state_consistency_flag = <$fh2>;
+    print "state consistency $state_consistency_flag\n";
+    close $fh2;
 
-    my $json;
+    open $fh2, "<", $transition_filename or die "Could not open file '$transition_filename' ";
+    my $transition_consistency_flag = <$fh2>;
+    print "transition consistency $transition_consistency_flag\n";
+    close $fh2;
+
+    my $json_state;
+    my $json_transition;
+
     local $/; #Enable 'slurp' mode
-    open my $fh, "<", "data.json" or die "Can't open file!";
-    $json = <$fh>;
+    open my $fh, "<", "$state_filename.json" or die "Can't open file!";
+    $json_state = <$fh>;
     close $fh;
-    my $json_ref_data = decode_json($json);#returns REFERENCES
-    my $connected_states_ref = $json_ref_data; #copy of hash references to be used in other sub routines
-    my %json_deref_data = %{$json_ref_data};#dereference
 
-    return $connected_states_ref;
+    open $fh, "<", "$transition_filename.json" or die "Can't open file!";
+    $json_transition = <$fh>;
+    close $fh;
+
+    my $json_ref_state_data = decode_json($json_state);#returns REFERENCES
+    my $connected_states_ref = $json_ref_state_data; #copy of hash references to be used in other sub routines
+    my %json_deref_state_data = %{$json_ref_state_data};#dereference
+
+    my $json_ref_transition_data = decode_json($json_transition);#returns REFERENCES
+    my $connected_transitions_ref = $json_ref_transition_data; #copy of hash references to be used in other sub routines
+    my %json_deref_transition_data = %{$json_ref_transition_data};#dereference
+
+
+    return $connected_states_ref, $connected_transitions_ref;
 }
 
 sub initial_model {
-  my $connected_states_ref = $_[0];
-  my %connected_states_deref = %{$connected_states_ref};
+  my $connected_states_ref2 = $_[0]; # $connected_states_ref is declared in sub import_from_python
+  my $connected_transitions_ref2 = $_[1];
+
+  my %connected_states_deref = %{$connected_states_ref2};
   print "intializing state energies model with ref nodes E = 0 ...\n";
   foreach $reference_state ( keys %connected_states_deref) {
-     adjust_tied_energies2( $reference_state, $connected_states_ref, 0.0);
+     adjust_tied_energies2( $reference_state, $connected_states_ref2, 0.0);
   }
 }
 
