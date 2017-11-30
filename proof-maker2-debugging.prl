@@ -6,6 +6,9 @@ use warnings;
 use Data::Dumper; #helpful for debugging
 use Config::Simple;
 use List::Util qw(first);
+use File::Copy qw(copy);
+use Cwd qw(chdir);
+
 #use strict; #errors out
 
 # Monte Carlo program to explore 'model space' by using steady-state transport
@@ -51,7 +54,8 @@ use List::Util qw(first);
 # To get estimated runtime
 my $start_time = time(); # for basic performance testing
 
-%parameters = load_config_settings("config.txt");
+my $config_path = "config.txt";
+%parameters = load_config_settings($config_path);
 
 #temporary solution to use config file with existing code... (prexisting paramters set to hash values loaded from config file)
 $proof = $parameters{"proof"}; # 1 if proofreading (additional states and transitions present compared to simple transport)
@@ -76,12 +80,26 @@ $ebarslow = $parameters{"ebarslow"}; # minimum energy value of barrier height (a
 $kzero = $parameters{"kzero"}; # rate constant prefactor: full first-order rate constant = k_ij = kzero * exp( - barrier_energy )
 $ebump = $parameters{"ebump"};  # amount by which initial transition-state (barrier) energy exceeds max of pair
 
+$directory = $parameters{"directory"}; # path for run drectory
 $tmpfile = $parameters{"tmpfile"}; # temporary file used for calculations
 $mcfile = $parameters{"mcfile"}; # outputs monte carlo information
 $kfile = $parameters{"kfile"}; # temporary file which contains rate matrix
 $datfile = $parameters{"datfile"}; # outputs MC number and MC energy function. USE FOR BASIC ANALYSIS!
 $flowfile = $parameters{"flowfile"}; #temporary file whihc contains configuration states for trial pertubation
 $debugfile = $parameters{"debugfile"}; # outputs debug info (as needed)
+$logfile = $parameters{"logfile"}; # console output to log file
+
+unless(-e $directory or mkdir $directory) { #make directory if directory does not already exist
+        die "Unable to create $directory\n";
+    }
+
+my $pythonfile = "python_graph_script.py";
+my $pythonfilenew = $directory."\/".$pythonfile;
+my $config_path_new = $directory."\/".$config_path;
+copy $pythonfile, $pythonfilenew; #copy python script into new folder
+copy $config_path, $config_path_new;
+
+chdir("$directory") or die "Error! Cannot change working directory: $!\n"; #change working directory
 
 open(MCFILE, "> $mcfile") or die "Error! Cannot open $mcfile";
 open(DATA, "> $datfile") or die "Error! Cannot open $datfile";
@@ -1673,8 +1691,8 @@ sub matrix_to_csv {
 #this script loads in adjacency matrix (in .csv format)from proof-maker
 #then it converts the matrix to graph then to sub matrices to use in proof-maker
 sub python_networkx {
-    my $pythonfile = "python_graph_script.py";
-    system("python $pythonfile"); #system call to run python file
+
+    system("python $pythonfile");
 
 };
 
@@ -1682,12 +1700,12 @@ sub import_from_python {
     my $state_filename = "python_to_perl_state";
     my $transition_filename = "python_to_perl_transition";
 
-    open my $fh2, "<", $state_filename or die "Could not open file '$state_filename' ";
+    open my $fh2, "<", "$state_filename" or die "Could not open file '$state_filename' ";
     my $state_consistency_flag = <$fh2>;
     print "state consistency $state_consistency_flag\n";
     close $fh2;
 
-    open $fh2, "<", $transition_filename or die "Could not open file '$transition_filename' ";
+    open $fh2, "<", "$transition_filename" or die "Could not open file '$transition_filename' ";
     my $transition_consistency_flag = <$fh2>;
     print "transition consistency $transition_consistency_flag\n";
     close $fh2;
@@ -1781,13 +1799,16 @@ sub load_config_settings {
     kfile => "rate_matrix.tmp",
     datfile => "evolver_rates.dat",
     flowfile => "evolver_flows.dat",
-    debugfile => "debug"
+    debugfile => "debug",
+    logfile => "logfile",
+    directory => "PROOF_MAKER_DATA"
   );
   my @required_parameters = ( # Required paramters to be in config file
     "proof", "na_first", # Simulation Parameters
     "nsteps","dprint","n_beta","seed","demax","alpha","beta_init","fbeta","tol","pbeta_stay", # Monte Carlo Parameters
     "dmu_N","dmu_S","dmu_W","fmu_N","fmu_S","fmu_W","ebarslow","kzero","ebump", # Physical Parameters
-    "tmpfile", "mcfile", "kfile", "datfile", "flowfile", "debugfile" # output files
+    "tmpfile", "mcfile", "kfile", "datfile", "flowfile", "debugfile", "logfile", # output files
+    "directory" #new directory for run
   );
   my %config;
   Config::Simple->import_from( $config_file, \%config);
