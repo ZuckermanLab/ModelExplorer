@@ -552,8 +552,8 @@ print "\n";
 
 # initialize barrier energies
 initialize_barriers(); # defines hash of barrier heights, ebars
-@barkeys = keys %ebars;
-
+@barkeys_unordered = keys %ebars; #note that is is unordered and different for each runtime
+@barkeys = sort @barkeys_unordered; #sorts barkeys so it is the same order for each run! (otherwise trial move picks different barriers)
 
 # correct barrier energies based on tied states
 print "\n";
@@ -562,10 +562,6 @@ foreach $tlist ( @tied_states_tr ) { # now all are two element arrays
    print "TIED PAIR for TRANSITION: $aname  $bname\n";
 }
 
-# assign energies for barriers
-foreach $pair ( @barkeys ) { # loop over all barriers
-   adjust_tied_barriers( $pair, $ebars{$pair} );
-}
 
 ### Further intializations and prints
 # print all state pairs
@@ -763,12 +759,18 @@ my ($connected_states, $connected_transitions) = import_from_python();
 print "connected states\n".Dumper($connected_states);
 print "connected transitions\n".Dumper($connected_transitions);
 
-initial_model($connected_states, $connected_transitions);
+initial_model($connected_states, $connected_transitions);#not using connected transitions, transitions are correctly made in perl script, python checks consistency
 
 # Put the same info into more useful hashes
 ( $ref_one, $ref_two ) = equiv_hashes_from_list ( \@equiv_lists_tr );
 %equiv_tr = %{ $ref_one }; # indicates which key a given transn is referenced to
 %same_bar = %{ $ref_two }; # hash giving all states referenced to a key
+
+# assign energies for barriers
+foreach $pair ( @barkeys ) { # loop over all barriers
+   adjust_tied_barriers( $pair, $ebars{$pair} );
+}
+
 
 @samekeys_tr = keys ( %same_bar );
 @dups_tr = (); # list of all transitions equivalent to some other
@@ -1736,7 +1738,7 @@ sub import_from_python {
 
 sub initial_model {
   my $connected_states_ref2 = $_[0]; # $connected_states_ref is declared in sub import_from_python
-  my $connected_transitions_ref2 = $_[1];
+  my $connected_transitions_ref2 = $_[1]; # not being used currently, energies are assigned previously in program, python used to check consistency
 
   my %connected_states_deref = %{$connected_states_ref2};
   print "intializing state energies model with ref nodes E = 0 ...\n";
@@ -1775,7 +1777,7 @@ sub load_config_settings {
   my %default_parameters = (   # default parameter values
     proof => 1,
     na_first => 1,
-    nsteps => 1e2,
+    nsteps => 1e4,
     dprint => 1e0,
     n_beta => 2e2,
     seed => 456789,
