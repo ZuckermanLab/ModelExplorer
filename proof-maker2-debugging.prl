@@ -88,16 +88,25 @@ $datfile = $parameters{"datfile"}; # outputs MC number and MC energy function. U
 $flowfile = $parameters{"flowfile"}; #temporary file whihc contains configuration states for trial pertubation
 $debugfile = $parameters{"debugfile"}; # outputs debug info (as needed)
 $logfile = $parameters{"logfile"}; # console output to log file
+$autobot = $parameters{"autobot"}; # turn on/off automation (default = 0 = OFF)
 
 unless(-e $directory or mkdir $directory) { #make directory if directory does not already exist
         die "Unable to create $directory\n";
     }
 
 my $pythonfile = "python_graph_script.py";
+my $analyze_script = "analyze-model.prl";
+my $find_min_script = "find_min.py";
+
 my $pythonfilenew = $directory."\/".$pythonfile;
 my $config_path_new = $directory."\/".$config_path;
+my $analyze_script_new = $directory."\/".$analyze_script;
+my $find_min_script_new = $directory."\/".$find_min_script;
+
 copy $pythonfile, $pythonfilenew; #copy python script into new folder
 copy $config_path, $config_path_new;
+copy $analyze_script, $analyze_script_new;
+copy $find_min_script, $find_min_script_new;
 
 chdir("$directory") or die "Error! Cannot change working directory: $!\n"; #change working directory
 
@@ -1199,6 +1208,16 @@ close(DATA);
 close(FLOWS);
 close(DEBUG);
 
+print "Running find min python script...\n";
+
+if ( $autobot == 1){ #run automation pipeline
+  system("python $find_min_script $alpha $seed $nsteps");
+}
+
+
+
+#################################################################################
+
 #### Subroutines
 sub initialize_barriers { # initialize barrier energies and edges array
   my $i; my $j; my $a_name; my $b_name; my $pairname;
@@ -1803,14 +1822,16 @@ sub load_config_settings {
     flowfile => "evolver_flows.dat",
     debugfile => "debug",
     logfile => "logfile",
-    directory => "PROOF_MAKER_DATA"
+    directory => "PROOF_MAKER_DATA",
+    autobot => "0"
   );
   my @required_parameters = ( # Required paramters to be in config file
     "proof", "na_first", # Simulation Parameters
     "nsteps","dprint","n_beta","seed","demax","alpha","beta_init","fbeta","tol","pbeta_stay", # Monte Carlo Parameters
     "dmu_N","dmu_S","dmu_W","fmu_N","fmu_S","fmu_W","ebarslow","kzero","ebump", # Physical Parameters
     "tmpfile", "mcfile", "kfile", "datfile", "flowfile", "debugfile", "logfile", # output files
-    "directory" #new directory for run
+    "directory", #new directory for run
+    "autobot" #turn on/off automation pipeline
   );
   my %config;
   Config::Simple->import_from( $config_file, \%config);

@@ -1,8 +1,8 @@
 #!/usr/bin/perl -w
 #use strict;
 use POSIX;
-
-# Analyze Model Script written by DM Zuckerman 
+use Config::Simple;
+# Analyze Model Script written by DM Zuckerman
 # Addidtional updates/edits by August George, Summer 2017
 
 # This program uses models generated from proof-maker script to calculate flows
@@ -18,10 +18,14 @@ use POSIX;
 # (3) Energy differences among tied states match constraints
 # (4) Energies of fixed states remain at constrained values
 
+my $config_path = "analysis_config.txt";
+%parameters = load_config_settings($config_path);
+$efile_init = $parameters{"efile_init"}; # energy file used for reference model
+$bfile_init = $parameters{"bfile_init"}; # barrier file used for reference model
 
 ### Files to be read for reference model
-$efile_init = "energies-4000";
-$bfile_init = "barriers-4000";
+#$efile_init = "energies-4000";
+#$bfile_init = "barriers-4000";
 
 
 ### Analysis type and values
@@ -58,6 +62,7 @@ $pbeta_stay = 0.2; # probability to stay at same beta
 #$beta_early = 1e1;  # alternate between two values
 #$beta_late = 1e3;
 print "Analysis type: $analysis from $dmu_init to $dmu_fin\n";
+print "using $efile_init and $bfile_init\n";
 print "Note most MC parameters not used\n";
 print "Simulation type: proof = $proof  na_first = $na_first\n";
 print "MC Protocol: Now using flow sflow* |sflow/wflow|**alpha\n";
@@ -605,13 +610,13 @@ foreach $pair ( @barkeys ) { # loop over all barriers
 
 
 ###### Read in model (energies, barriers)
-open(ETMP, "$efile_init");
+open(ETMP, ">", "$efile_init") or die "ERROR! cannot open efile $efile_init";
 while (<ETMP>) {
    @vals = split ' ', $_;
    $energies{$vals[0]} = 1.0*$vals[1];
 }
 close(ETMP);
-open(BTMP, "$bfile_init");
+open(BTMP, ">", "$bfile_init") or die "ERROR! cannot open bfile $bfile_init";
 while (<BTMP>) {
    @vals = split ' ', $_;
    $ebars{$vals[0]} = 1.0*$vals[1];
@@ -1554,4 +1559,21 @@ sub energy_noneq {
     #if ( $all_defined == 1 ) { return $sum; }
     #else { return "bunk"; }
     return $sum;
+}
+
+sub load_config_settings {
+  my $config_file = $_[0]; #load config file
+  print "using config file: $config_file\n";
+
+  my @required_parameters = ( # Required paramters to be in config file
+    "efile_init", "bfile_init", # files to read in
+  );
+  my %config;
+  Config::Simple->import_from( $config_file, \%config);
+  for (@required_parameters ) {  # Verify
+    print "ERROR! Parameter '$_' is missing from config.\n" unless exists $config{$_};
+  }
+  my %settings = (%config );
+  #print "settings: \n". Dumper(%settings)."\n";
+  return %settings;
 }
