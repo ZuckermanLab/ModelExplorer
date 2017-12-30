@@ -14,6 +14,12 @@ import subprocess
 import sys
 #needs analyze model and evolver_rates in directory
 
+#manually enter alpha, seed, n values
+min_factor = 0.5 #(min value * min_factor = cutoff point for min finder )
+imported_alpha = 0.25
+imported_seed = 123456
+imported_n = 1e5
+
 def graph_analysis_data(sub_imported_alpha,sub_imported_seed,sub_imported_n, sub_model_mcn):
     analysis_alpha = sub_imported_alpha
     analysis_seed = sub_imported_seed
@@ -66,7 +72,7 @@ def graph_analysis_data(sub_imported_alpha,sub_imported_seed,sub_imported_n, sub
     plt.xlabel("$d\mu_{Sodium}$ (change in chemical potential of Sodium) [$k T$]", fontweight = 'bold')
     #ax.plot( analysis_x_dmu_n, analysis_y_sn, "r--", analysis_x_dmu_n, analysis_y_wn, "b--", analysis_x_dmu_n, analysis_y_ws, "g--" )
     plt.plot( analysis_x_dmu_n, analysis_y_sn, "r--", label="Substrate:Sodium")
-    plt.plot( analysis_x_dmu_n, analysis_y_wn, "b--", label="Toxin:Sodium")
+    plt.plot( analysis_x_dmu_n, analysis_y_wn, "b", label="Toxin:Sodium")
     plt.plot( analysis_x_dmu_n, analysis_y_ws, "g--", label="Toxin:Substrate")
     #plt.legend(["Substrate:Sodium", "Toxin:Sodium", "Toxin:Substrate"])
     plt.legend()
@@ -77,10 +83,11 @@ def graph_analysis_data(sub_imported_alpha,sub_imported_seed,sub_imported_n, sub
     plt.close()
 
 
+#used with automation
+#imported_alpha = sys.argv[1]
+#imported_seed = sys.argv[2]
+#imported_n = sys.argv[3]
 
-imported_alpha = sys.argv[1]
-imported_seed = sys.argv[2]
-imported_n = sys.argv[3]
 
 #compare_width = int(float(imported_n)*0.01)
 #print("compare width = %s \n") % compare_width
@@ -118,7 +125,8 @@ print "\n distance = \n"
 pprint.pprint(distance)
 
 
-min_threshold = -0.5*distance + mc_energy_mean
+#min_threshold = (-0.05*distance) + mc_energy_mean
+min_threshold = min_factor*mc_energy_min
 print "\n min threshold = \n"
 pprint.pprint(min_threshold)
 
@@ -185,7 +193,7 @@ for array in min_index:
             copyfile(old_energies_file, new_energies_file)
             copyfile(old_analysis_file, new_analysis_file)
             temp_file = "analysis_config.txt"
-            config_text = "efile_init %s \nbfile_init %s" % (value, value)
+            config_text = "efile_init energies-%s \nbfile_init barriers-%s" % (value, value)
             with open(os.path.join(analysis_directory, temp_file), 'wb') as config:
                 config.write(config_text)
             pipe = subprocess.Popen(["perl", "analyze-model.prl"],cwd=analysis_directory)
