@@ -15,17 +15,35 @@ import sys
 #needs analyze model and evolver_rates in directory
 
 #manually enter alpha, seed, n values
-min_factor = 0.5 #(min value * min_factor = cutoff point for min finder )
-imported_alpha = 0.25
-imported_seed = 123456
-imported_n = 1e5
+min_factor = 0.25 #(min value * min_factor = cutoff point for min finder )
+#imported_alpha = 0.5
+#imported_seed = 3456789
+#imported_n = 1e5
+#imported_analysis = "vary_dmu_S"
 
-def graph_analysis_data(sub_imported_alpha,sub_imported_seed,sub_imported_n, sub_model_mcn):
+used with automation
+imported_alpha = sys.argv[1]
+imported_seed = sys.argv[2]
+imported_n = sys.argv[3]
+imported_analysis = sys.argv[4]
+
+def graph_analysis_data(sub_imported_alpha,sub_imported_seed,sub_imported_n, sub_model_mcn, sub_analysis_type):
     analysis_alpha = sub_imported_alpha
     analysis_seed = sub_imported_seed
     analysis_nsteps = sub_imported_n
     analysis_mcn = sub_model_mcn
-    analysis_file_to_graph = "analysis-vary_dmu_N-dmu_init__-6__to__dmu_fin__0"
+    analysis_type = sub_analysis_type
+
+    if analysis_type == "vary_dmu_N":
+        analysis_file_to_graph = "analysis-vary_dmu_N-dmu_init__-6__to__dmu_fin__0"
+        varying_dmu = "Sodium"
+    elif analysis_type == "vary_dmu_S":
+        analysis_file_to_graph = "analysis-vary_dmu_S-dmu_init__-2__to__dmu_fin__4"
+        varying_dmu = "Substrate"
+    elif analysis_type == "vary_dmu_W":
+        analysis_file_to_graph = "analysis-vary_dmu_W-dmu_init__-2__to__dmu_fin__4"
+        varying_dmu = "Toxin"
+
     raw_analysis_data = np.genfromtxt(analysis_file_to_graph)
     analysis_x_dmu_n = raw_analysis_data[:,0]
     analysis_n = raw_analysis_data[:,1]
@@ -35,41 +53,21 @@ def graph_analysis_data(sub_imported_alpha,sub_imported_seed,sub_imported_n, sub
     analysis_y_wn = analysis_w / analysis_n
     analysis_y_ws = analysis_w / analysis_s
 
-    print("dmu\n")
-    pprint.pprint(analysis_x_dmu_n)
-
-    print("n\n")
-    pprint.pprint(analysis_n)
-
-    print("s\n")
-    pprint.pprint(analysis_s)
-
-    print("w\n")
-    pprint.pprint(analysis_w)
-
-    print("s/n\n")
-    pprint.pprint(analysis_y_sn)
-
-    print("w/n\n")
-    pprint.pprint(analysis_y_wn)
-
-    print("w/s\n")
-    pprint.pprint(analysis_y_ws)
 
     fig = plt.figure()
     #ax = fig.add_subplot(111)
     big_title = "Proof-maker:  Sodium, Substrate, and Toxin Flux"
     title = "Reference Model: n = %s \nMC Parameters: Alpha = %s, Seed = %s, N-steps = %s" % (analysis_mcn, analysis_alpha, analysis_seed, analysis_nsteps)
     ylabel_text = "Flux (Out->In) [$mol$ $s^{-1}$ $m^{-2}$)]"
-    xlabel_text = ""
-    analysis_graph_name = "analysis_graph_a%s_s%s_mcn%s_modeln%s.png" % (analysis_alpha, analysis_seed, analysis_nsteps, analysis_mcn)
+    xlabel_text = "$d\mu_{%s}$ (change in chemical potential of %s) [$k T$]" % (varying_dmu, varying_dmu)
+    analysis_graph_name = "analysis_graph_a%s_s%s_mcn%s_modeln%s_vary_dmu_%s.png" % (analysis_alpha, analysis_seed, analysis_nsteps, analysis_mcn,varying_dmu)
     #ax.yaxis.set_major_formatter(mtick.FormatStrFormatter('%.1e'))
     #ax.xaxis.set_major_formatter(mtick.FormatStrFormatter('%.1e'))
     fig.suptitle(big_title,fontweight = 'bold', fontsize = 12)
     plt.title(title, fontsize = 10)
     plt.grid(True)
     plt.ylabel(ylabel_text, fontweight = 'bold')
-    plt.xlabel("$d\mu_{Sodium}$ (change in chemical potential of Sodium) [$k T$]", fontweight = 'bold')
+    plt.xlabel(xlabel_text, fontweight = 'bold')
     #ax.plot( analysis_x_dmu_n, analysis_y_sn, "r--", analysis_x_dmu_n, analysis_y_wn, "b--", analysis_x_dmu_n, analysis_y_ws, "g--" )
     plt.plot( analysis_x_dmu_n, analysis_y_sn, "r--", label="Substrate:Sodium")
     plt.plot( analysis_x_dmu_n, analysis_y_wn, "b", label="Toxin:Sodium")
@@ -82,13 +80,16 @@ def graph_analysis_data(sub_imported_alpha,sub_imported_seed,sub_imported_n, sub
     plt.clf()
     plt.close()
 
+    sub_model_meta_data = "a%ss%smcn%s     %s     %s     %s     %s     %s\n" %(analysis_alpha, analysis_seed, analysis_mcn, analysis_type, analysis_x_dmu_n[0],analysis_y_sn[0],analysis_y_wn[0],analysis_y_ws[0])
+    return sub_model_meta_data
+
+
 
 #used with automation
 #imported_alpha = sys.argv[1]
 #imported_seed = sys.argv[2]
 #imported_n = sys.argv[3]
-
-
+#imported_analysis = sys.argv[4]
 #compare_width = int(float(imported_n)*0.01)
 #print("compare width = %s \n") % compare_width
 
@@ -176,6 +177,10 @@ plt.clf()
 plt.close()
 #plt.show()
 
+meta_data_file = open("meta_data.dat", "a")
+meta_header = "model     analysis     dmu N     S/N     W/N     W/S\n"
+meta_data_file.write(meta_header)
+
 #models_directory = "models_from_run/"
 for array in min_index:
     for value in array:
@@ -193,7 +198,7 @@ for array in min_index:
             copyfile(old_energies_file, new_energies_file)
             copyfile(old_analysis_file, new_analysis_file)
             temp_file = "analysis_config.txt"
-            config_text = "efile_init energies-%s \nbfile_init barriers-%s" % (value, value)
+            config_text = "efile_init energies-%s \nbfile_init barriers-%s \nanalysis %s" % (value, value,imported_analysis)
             with open(os.path.join(analysis_directory, temp_file), 'wb') as config:
                 config.write(config_text)
             pipe = subprocess.Popen(["perl", "analyze-model.prl"],cwd=analysis_directory)
@@ -201,5 +206,8 @@ for array in min_index:
             current_directory = os.getcwd()
             print current_directory
             os.chdir(analysis_directory)
-            graph_analysis_data(imported_alpha,imported_seed,imported_n,value)
+            model_meta_data = graph_analysis_data(imported_alpha,imported_seed,imported_n,value, imported_analysis)
             os.chdir(current_directory)
+            meta_data_file.write(model_meta_data)
+
+meta_data_file.close()

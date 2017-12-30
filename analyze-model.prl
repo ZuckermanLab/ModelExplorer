@@ -22,20 +22,39 @@ my $config_path = "analysis_config.txt";
 %parameters = load_config_settings($config_path);
 $efile_init = $parameters{"efile_init"}; # energy file used for reference model
 $bfile_init = $parameters{"bfile_init"}; # barrier file used for reference model
+$analysis = $parameters{"analysis"}; #analysis type (vary_dmu_W,S, or N)
 
 ### Files to be read for reference model
 #$efile_init = "energies-4000";
 #$bfile_init = "barriers-4000";
 
+if ( $analysis eq "vary_dmu_N") {
+  $dmu_init = -6;
+  $dmu_fin = 0;
+} elsif ($analysis eq "vary_dmu_W"){
+  $dmu_init = -2;
+  $dmu_fin = 4;
+} elsif ($analysis eq "vary_dmu_S"){
+  $dmu_init = -2;
+  $dmu_fin = 4;
+}
+
 
 ### Analysis type and values
 #$analysis = "vary_dmu_W";
 #$dmu_init = -2;
-#$dmu_fin = 2;
-$analysis = "vary_dmu_N";
-$dmu_init = -6;
-$dmu_fin = 0;
+#$dmu_fin = 4;
+
+#$analysis = "vary_dmu_N";
+#$dmu_init = -6;
+#$dmu_fin = 0;
+
+#$analysis = "vary_dmu_S";
+#$dmu_init = -2;
+#$dmu_fin = 4;
+
 $nsteps = 1e2;
+
 $dmu_inc = ( $dmu_fin - $dmu_init ) / $nsteps;
 
 $analysis_file = "analysis-" . $analysis . "-dmu_init__$dmu_init" . "__to__" . "dmu_fin__$dmu_fin";
@@ -610,13 +629,13 @@ foreach $pair ( @barkeys ) { # loop over all barriers
 
 
 ###### Read in model (energies, barriers)
-open(ETMP, ">", "$efile_init") or die "ERROR! cannot open efile $efile_init";
+open(ETMP, "< $efile_init") or die "ERROR! cannot open efile $efile_init";
 while (<ETMP>) {
    @vals = split ' ', $_;
    $energies{$vals[0]} = 1.0*$vals[1];
 }
 close(ETMP);
-open(BTMP, ">", "$bfile_init") or die "ERROR! cannot open bfile $bfile_init";
+open(BTMP, "< $bfile_init") or die "ERROR! cannot open bfile $bfile_init";
 while (<BTMP>) {
    @vals = split ' ', $_;
    $ebars{$vals[0]} = 1.0*$vals[1];
@@ -648,6 +667,13 @@ elsif ( $analysis eq "vary_dmu_W" ) {
    $dmu_W = $dmu_now;
    $energy_terms{'Wo'} = -$fmu_W*$dmu_W;
    $energy_terms{'Wi'} = (1-$fmu_W)*$dmu_W; # Note that 1 - fmu_W -(-fmu_W) = 1
+   foreach $key ( keys(%energy_terms) ) { print "energy_term $key = $energy_terms{$key}\n"; }
+}
+elsif ( $analysis eq "vary_dmu_S" ) {
+   print "\nAnalysis type: $analysis\n";
+   $dmu_S = $dmu_now;
+   $energy_terms{'So'} = -$fmu_S*$dmu_S;
+   $energy_terms{'Si'} = (1-$fmu_S)*$dmu_S; # Note that 1 - fmu_S -(-fmu_S) = 1
    foreach $key ( keys(%energy_terms) ) { print "energy_term $key = $energy_terms{$key}\n"; }
 }
 foreach $state (@states) {
@@ -1565,15 +1591,20 @@ sub load_config_settings {
   my $config_file = $_[0]; #load config file
   print "using config file: $config_file\n";
 
+  my %default_parameters = (
+  efile_init => "energies-1",
+  bfile_init => "barriers-1",
+  analysis => "vary_dmu_N",
+  );
   my @required_parameters = ( # Required paramters to be in config file
-    "efile_init", "bfile_init", # files to read in
+    "efile_init", "bfile_init","analysis" # files to read in
   );
   my %config;
   Config::Simple->import_from( $config_file, \%config);
   for (@required_parameters ) {  # Verify
-    print "ERROR! Parameter '$_' is missing from config.\n" unless exists $config{$_};
+    print "ERROR! Parameter '$_' is missing from config. Using default value $default_parameters{$_}\n" unless exists $config{$_};
   }
-  my %settings = (%config );
+  my %settings = (%default_parameters, %config );
   #print "settings: \n". Dumper(%settings)."\n";
   return %settings;
 }

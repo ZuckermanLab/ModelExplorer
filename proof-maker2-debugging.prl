@@ -89,6 +89,7 @@ $flowfile = $parameters{"flowfile"}; #temporary file whihc contains configuratio
 $debugfile = $parameters{"debugfile"}; # outputs debug info (as needed)
 $logfile = $parameters{"logfile"}; # console output to log file
 $autobot = $parameters{"autobot"}; # turn on/off automation (default = 0 = OFF)
+$analysis_type = $parameters{"analysis_type"}; #what type of analysis to do (vary dmu_N,S, or W)
 
 unless(-e $directory or mkdir $directory) { #make directory if directory does not already exist
         die "Unable to create $directory\n";
@@ -1211,7 +1212,7 @@ close(DEBUG);
 print "Running find min python script...\n";
 
 if ( $autobot == 1){ #run automation pipeline
-  system("python $find_min_script $alpha $seed $nsteps");
+  system("python $find_min_script $alpha $seed $nsteps $analysis_type");
 }
 
 
@@ -1823,7 +1824,8 @@ sub load_config_settings {
     debugfile => "debug",
     logfile => "logfile",
     directory => "PROOF_MAKER_DATA",
-    autobot => "0"
+    autobot => "0",
+    analysis_type => "vary_dmu_N"
   );
   my @required_parameters = ( # Required paramters to be in config file
     "proof", "na_first", # Simulation Parameters
@@ -1831,7 +1833,8 @@ sub load_config_settings {
     "dmu_N","dmu_S","dmu_W","fmu_N","fmu_S","fmu_W","ebarslow","kzero","ebump", # Physical Parameters
     "tmpfile", "mcfile", "kfile", "datfile", "flowfile", "debugfile", "logfile", # output files
     "directory", #new directory for run
-    "autobot" #turn on/off automation pipeline
+    "autobot", #turn on/off automation pipeline
+    "analysis_type" #which type of analysis (vary dmu n,s, or w)
   );
   my %config;
   Config::Simple->import_from( $config_file, \%config);
