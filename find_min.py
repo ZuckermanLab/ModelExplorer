@@ -21,7 +21,7 @@ min_factor = 0.25 #(min value * min_factor = cutoff point for min finder )
 #imported_n = 1e5
 #imported_analysis = "vary_dmu_S"
 
-used with automation
+#used with automation
 imported_alpha = sys.argv[1]
 imported_seed = sys.argv[2]
 imported_n = sys.argv[3]
