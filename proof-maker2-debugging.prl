@@ -73,9 +73,9 @@ $pbeta_stay = $parameters{"pbeta_stay"}; # probability to stay at same beta duri
 $dmu_N = $parameters{"dmu_N"}; # chemical potential change (mu_i - mu_o) of driving "ion" N (e.g., sodium)
 $dmu_S = $parameters{"dmu_S"}; # chemical potential change of "substrate" S (e.g., sugar)
 $dmu_W = $parameters{"dmu_W"}; # chemical potential change of wrong "substrate" W (e.g., toxin)
-$fmu_N = $parameters{"fmu_N"}; # fraction of dmu attributed to outside - i.e., log of concnetration increase relative to equil
-$fmu_S = $parameters{"fmu_S"}; # fraction of dmu attributed to outside - i.e., log of concnetration increase relative to equil
-$fmu_W = $parameters{"fmu_W"}; # fraction of dmu attributed to outside - i.e., log of concnetration increase relative to equil
+$fmu_N = $parameters{"fmu_N"}; # fraction of dmu attributed to outside - i.e., log of concentration increase relative to equil
+$fmu_S = $parameters{"fmu_S"}; # fraction of dmu attributed to outside - i.e., log of concentration increase relative to equil
+$fmu_W = $parameters{"fmu_W"}; # fraction of dmu attributed to outside - i.e., log of concentration increase relative to equil
 $ebarslow = $parameters{"ebarslow"}; # minimum energy value of barrier height (above max of two states) for slow transitions
 $kzero = $parameters{"kzero"}; # rate constant prefactor: full first-order rate constant = k_ij = kzero * exp( - barrier_energy )
 $ebump = $parameters{"ebump"};  # amount by which initial transition-state (barrier) energy exceeds max of pair
@@ -90,6 +90,7 @@ $debugfile = $parameters{"debugfile"}; # outputs debug info (as needed)
 $logfile = $parameters{"logfile"}; # console output to log file
 $autobot = $parameters{"autobot"}; # turn on/off automation (default = 0 = OFF)
 $analysis_type = $parameters{"analysis_type"}; #what type of analysis to do (vary dmu_N,S, or W)
+$dg_sw_config = $parameters{"dg_sw"};
 
 unless(-e $directory or mkdir $directory) { #make directory if directory does not already exist
         die "Unable to create $directory\n";
@@ -118,7 +119,7 @@ open(DEBUG, "> $debugfile") or die "Error! Cannot open $debugfile";
 
 
 srand($seed); # initializes random number generator ... should make MC repeatable
-if ( $proof==1 ) {$dg_SW = 2; } # amount by which binding energy of W exceeds that of S
+if ( $proof==1 ) {$dg_SW = $dg_sw_config; } # amount by which binding energy of W exceeds that of S
 
 print "Simulation type: proof = $proof  na_first = $na_first\n";
 print "MC Protocol: Now using flow sflow* |sflow/wflow|**alpha\n";
@@ -1825,7 +1826,8 @@ sub load_config_settings {
     logfile => "logfile",
     directory => "PROOF_MAKER_DATA",
     autobot => "0",
-    analysis_type => "vary_dmu_N"
+    analysis_type => "vary_dmu_N",
+    dg_sw => 2,
   );
   my @required_parameters = ( # Required paramters to be in config file
     "proof", "na_first", # Simulation Parameters
@@ -1834,7 +1836,8 @@ sub load_config_settings {
     "tmpfile", "mcfile", "kfile", "datfile", "flowfile", "debugfile", "logfile", # output files
     "directory", #new directory for run
     "autobot", #turn on/off automation pipeline
-    "analysis_type" #which type of analysis (vary dmu n,s, or w)
+    "analysis_type", #which type of analysis (vary dmu n,s, or w)
+    "dg_sw" # set dg_sw (different binding energy of W to S)
   );
   my %config;
   Config::Simple->import_from( $config_file, \%config);

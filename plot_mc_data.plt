@@ -1,20 +1,16 @@
 
 set terminal  pngcairo size 1400, 1000
 
-#Variable Initialization
-#Sets analysis data file to use, sets title, sets output
 
-#PATH = "C:\\Users\\georgeau\\Box Sync\\August\\ZuckermanLab\\Proof-maker\\RUNS\\DEBUG_NSTEPS1e4_ALPHA1_SEED456789"
-PATH = "C:\\Users\\georgeau\\Box Sync\\August\\ZuckermanLab\\Proof-maker\\RUNS\\proof_maker_alpha0_5_s654321_1e5"
+PATH = "C:\\Users\\georgeau\\Desktop\\Zuckerman_Lab\\Proof_maker_runs\\RUNS\\proof_maker_alpha0_s901234_n1e5_dmuW-2_na_first_off"
 
 DATAFILE1 = PATH."\\evolver_rates.dat"
 #DATAFILE2 = PATH."\\evolver_rates2.dat"
 #DATAFILE3 = PATH."\\evolver_rates3.dat"
 #DATAFILE4 = PATH."\\evolver_rates_s9999999.dat"
 
-#TITLE = "Proof-maker: MC Energy vs MC n \n{/*0.85 MC Energy = -sflow*|sflow/wflow|^a^l^p^h^a} \n{/*0.85 seed=456789, alpha=1, n=1e4}"
-TITLE = "Proof-Maker: MC Energy Landscape \n{/*0.85 MC Energy = -sflow*|sflow/wflow|^a^l^p^h^a} \n{/*0.85 alpha=0.5, seed=654321, n steps=1e5}"
-OUTPUT = PATH."\\mc_graph_a0_5.png"
+TITLE = "Proof-Maker: MC Energy Landscape \n{/*0.85 MC Energy = -sflow*|sflow/wflow|^a^l^p^h^a} \n{/*0.85 alpha = 0, seed = 901234, n steps = 1e5, dmu_w = -2, Na first constraint off}"
+OUTPUT = PATH."\\mc_graph_a0_dmuw-2_nafirstoff.png"
 
 set output OUTPUT
 set title TITLE
