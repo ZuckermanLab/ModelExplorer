@@ -29,7 +29,7 @@ $analysis = $parameters{"analysis"}; #analysis type (vary_dmu_W,S, or N)
 #$bfile_init = "barriers-4000";
 
 if ( $analysis eq "vary_dmu_N") {
-  $dmu_init = -6;
+  $dmu_init = -10;
   $dmu_fin = 0;
 } elsif ($analysis eq "vary_dmu_W"){
   $dmu_init = -2;
@@ -65,15 +65,15 @@ print ADATA "#dmu_now   nflow  sflow  wflow\n";
 ### Simulation type
 $not_mc = 1;
 $proof = 1;
-$na_first = 1;
+$na_first = $parameters{"na_first"};
 
 ### MONTE CARLO PARAMETERS ###
 $dprint = 1e1; # interval between prints
 $n_beta = 2e2; # number of MC steps after which beta changes
-$seed = 45678;
+$seed = $parameters{"seed"};
 srand($seed); # initializes random number generator ... should make MC repeatable
 $demax = 1.0; # maximum change in energy of state or transition state
-$alpha = 1.0; # exponent for toxin flow in MC energy
+$alpha = $parameters{"alpha"}; # exponent for toxin flow in MC energy
 $beta_init = 1e1;
 $fbeta = 1e3; # max factor by which beta can change
 $tol = 0.3; # fractional change deemed significant
@@ -92,17 +92,17 @@ print "MC Parameters: pbeta_stay = $pbeta_stay    tol = $tol\n";
 
 
 ### PHYSICAL PARAMETERS (everything in kT units, effectively)
-$dmu_N = -4; # chemical potential change (mu_i - mu_o) of driving "ion" N (e.g., sodium)
-$dmu_S = 2; # chemical potential change of "substrate" S (e.g., sugar)
-$dmu_W = 2; # chemical potential change of wrong "substrate" W (e.g., toxin)
+$dmu_N = $parameters{"dmu_N"}; # chemical potential change (mu_i - mu_o) of driving "ion" N (e.g., sodium)
+$dmu_S = $parameters{"dmu_S"}; # chemical potential change of "substrate" S (e.g., sugar)
+$dmu_W = $parameters{"dmu_W"}; # chemical potential change of wrong "substrate" W (e.g., toxin)
 $fmu_N = 0.5; # fraction of dmu attributed to outside - i.e., log of concnetration increase relative to equil
 $fmu_S = 0.5; # fraction of dmu attributed to outside - i.e., log of concnetration increase relative to equil
 $fmu_W = 0.5; # fraction of dmu attributed to outside - i.e., log of concnetration increase relative to equil
-if ( $proof==1 ) {$dg_SW = 2; } # amount by which binding energy of W exceeds that of S
+if ( $proof==1 ) {$dg_SW = $parameters{"dg_SW"} } # amount by which binding energy of W exceeds that of S
 $ebarslow = 99; # minimum energy value of barrier height (above max of two states) for slow transitions
 $kzero = 1e-3; # rate constant prefactor
 $ebump = 1.0;  # amount by which initial transition-state energy exceeds max of pair
-print "Physical params: dmu_N = $dmu_N    dmu_S = $dmu_S    ebarslow = $ebarslow    kzero = $kzero    ebump = $ebump";
+print "Physical params: dmu_N = $dmu_N    dmu_S = $dmu_S   dmu_W = $dmu_W   ebarslow = $ebarslow    kzero = $kzero    ebump = $ebump";
 if ( $proof==1 ) { print "    dg_SW = $dg_SW"; }
 print "\nPhysical params: fmu_N = $fmu_N    fmu_S = $fmu_S    fmu_W = $fmu_W\n";
 print "\n\n";
@@ -1595,9 +1595,20 @@ sub load_config_settings {
   efile_init => "energies-1",
   bfile_init => "barriers-1",
   analysis => "vary_dmu_N",
+  na_first => 1,
+  seed => 123456,
+  alpha => 1.0,
+  dmu_N => -4, # chemical potential change (mu_i - mu_o) of driving "ion" N (e.g., sodium)
+  dmu_S => 2, # chemical potential change of "substrate" S (e.g., sugar)
+  dmu_W => 2, # chemical potential change of wrong "substrate" W (e.g., toxin)
+  dg_SW => 2
+
   );
   my @required_parameters = ( # Required paramters to be in config file
-    "efile_init", "bfile_init","analysis" # files to read in
+    "efile_init", "bfile_init","analysis", # files to read in
+    "na_first", "seed", "alpha",
+    "dmu_N", "dmu_S", "dmu_W",
+    "dg_SW"
   );
   my %config;
   Config::Simple->import_from( $config_file, \%config);
