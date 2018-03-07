@@ -91,6 +91,7 @@ $logfile = $parameters{"logfile"}; # console output to log file
 $autobot = $parameters{"autobot"}; # turn on/off automation (default = 0 = OFF)
 $analysis_type = $parameters{"analysis_type"}; #what type of analysis to do (vary dmu_N,S, or W)
 $dg_sw_config = $parameters{"dg_sw"};
+$same_dg_sw = $parameters{"same_dg_sw"};
 
 unless(-e $directory or mkdir $directory) { #make directory if directory does not already exist
         die "Unable to create $directory\n";
@@ -121,7 +122,7 @@ open(DEBUG, "> $debugfile") or die "Error! Cannot open $debugfile";
 srand($seed); # initializes random number generator ... should make MC repeatable
 if ( $proof==1 ) {$dg_SW = $dg_sw_config; } # amount by which binding energy of W exceeds that of S
 
-print "Simulation type: proof = $proof  na_first = $na_first\n";
+print "Simulation type: proof = $proof  na_first = $na_first same_dg_sw = $same_dg_sw\n";
 print "MC Protocol: Now using flow sflow* |sflow/wflow|**alpha\n";
 print "MC Parameters: $nsteps steps    seed = $seed    demax = $demax    alpha = $alpha\n";
 printf "MC Parameters: beta_init = %4.1e    max beta factor = %4.1e    adjusts every %d MC steps\n\n", $beta_init, $fbeta, $n_beta;
@@ -168,6 +169,17 @@ if ( $proof==1 ) {
    push @tied_for_bind, [ "So Sb", "Wo Wb"]; #substrate (un)binding from outside ~ toxin (un)binding from outside
    push @tied_for_bind, [ "Si Sb", "Wi Wb"]; #substrate (un)binding from inside ~ toxin (un)binding from inside
 }
+
+#$same_dg_sw =1;
+if ($same_dg_sw == 1) { # Let bound SW conformational transitions are equivalent
+  @tied_for_SW_bind = ();
+  push @tied_for_SW_bind, ('Sb Wo', 'So Wb', 'Sb Wi', 'Si Wb');
+  print DEBUG "TESTING 1...". $tied_for_SW_bind[0]."\n";
+}
+#$same_dg_sw =1;
+#my @tied_for_SW_bind = ('Sb Wo', 'So Wb', 'Sb Wi', 'Si Wb');
+print DEBUG "TESTING 1...". $tied_for_SW_bind[0]."\n";
+
 
 # Slow transitions - some transitions should be slower than others
 # e.g., unbinding to outside from inward-facing (compared to same transition in outward-facing)
@@ -645,6 +657,44 @@ for ( $i=0; $i<@barkeys; $i++ ) {
                } # end of else { #check for equivalent bases
            }
 
+           if ($proof==1 && $same_dg_sw == 1) { # S and W bound conformational transitions are equivalent
+           if ($apair_split[0] eq "XX" && $bpair_split[0] eq "XX"){
+             if ($apair_split[0] eq $apair_split[0+$n_units+1]  && $apair_split[0] eq $bpair_split[0]  && $apair_split[0] eq $bpair_split[0+$n_units+1] ){
+               if ($apair_split[1] eq $apair_split[1+$n_units+1]  && $apair_split[1] eq $bpair_split[1] && $apair_split[1] eq $bpair_split[1+$n_units+1] ){
+                 $a_sw_pair = "$apair_split[2] $apair_split[3]";
+                 $b_sw_pair = "$bpair_split[2] $bpair_split[3]";
+                 #print DEBUG "a_sw_pair $a_sw_pair b_sw_pair $b_sw_pair \n";
+                 #check if a_sw_pair and b_sw_pair are in tied_for_SW_bind list
+
+                 #print DEBUG "$a_sw_pair and $b_sw_pair\n";
+
+                 foreach my $element (@tied_for_SW_bind) {
+                   #print DEBUG "i: $element\n";
+                   if ( $element eq $a_sw_pair ){
+                     #print DEBUG "  A: $a_sw_pair is in tied SW list \n";
+                     foreach my $element2 (@tied_for_SW_bind){
+                       #print DEBUG "    j: $element2\n";
+                       if ( $element2 eq $b_sw_pair ){
+                         #print DEBUG "      B: $b_sw_pair is in tied SW list \n";
+                         print DEBUG "         $apair and $bpair <- SW confomrational equivalence \n";
+                         $equal_base_count = 4;
+                         #print DEBUG "        SW Conformtional Transition Equivalence! $apair to $bpair\n";
+                       }
+                     }
+                   }
+                 }
+
+                 #print DEBUG "tied for SW bind:" . $$tied_for_SW_bind[0] .$$tied_for_SW_bind[1]."\n";
+                 #if ( ( $tied_for_SW_bind[0] =~ m/$a_sw_pair/ || $tied_for_SW_bind[1] =~ m/$a_sw_pair/) && ( $tied_for_SW_bind[0] =~ m/$b_sw_pair/ || $tied_for_SW_bind[1] =~ m/$b_sw_pair/) ){
+                    # print DEBUG "SW equivalent conformational transition found! $a_sw_pair to $b_sw_pair is in  \n";
+                     #$equal_base_count = 4;
+                 #}
+
+               }
+             }
+            }
+           }
+
       }
       else {
         if ($proof == 1) { #if psuedo equivalent, will set apair and bpair to XF NX XX XX
@@ -700,7 +750,7 @@ for ( $i=0; $i<@barkeys; $i++ ) {
      if ( $if_equiv==1 ) {
         $etcount ++ ;
         print ".. Equivalent transition $etcount: $both_trans\n";
-        #print DEBUG ".. Equivalent transition $etcount: $both_trans\n";
+        print DEBUG ".. Equivalent transition $etcount: $both_trans\n";
         push @equiv_transns, [ $apair, $bpair ];
 
         push @tmp_transition_state_list, $apair;
@@ -715,6 +765,7 @@ for ( $i=0; $i<@barkeys; $i++ ) {
 #print DEBUG "ebars\n".Dumper(%ebars);
 my %tmp_hash_of_transition_states = map { $_, 1 } @tmp_transition_state_list;
 @transition_state_list = keys %tmp_hash_of_transition_states;
+#print DEBUG "transition state list\n".Dumper(@transition_state_list);
 
 $n_transition_states = @transition_state_list;
 #print DEBUG "n transition states $n_transition_states \n";
@@ -762,6 +813,7 @@ matrix_to_csv(\@transition_energy_matrix, "transition_state_energy_matrix.csv", 
 print "\nLists of equivalent transitions\n";
 foreach $list ( @equiv_lists_tr ) {
   print "Equiv list: @{$list}\n";
+  print DEBUG "Equiv list: @{$list}\n";
 }
 
 # uses python script to generate (from graph) connected states/energies and initialize MC model
@@ -1408,6 +1460,7 @@ sub state_print { # print states and energies
 }
 
 sub mc_energy {
+   print DEBUG "\n\nCALCULATING MC ENERGY...\n\n";
    my $a; my $b; my $emc = 0.0;
    my $fflow; my $bflow;
    my $sflow = 0.0; my $wflow = 0.0; my $nflow = 0.0;
@@ -1415,12 +1468,14 @@ sub mc_energy {
       $a = $$pair[0]; $b = $$pair[1];
       $fflow = flow( $a, $b );  $bflow = flow( $b, $a);
       print "mc_energy: pair $a  $b  with flows $fflow  $bflow\n";
+      print DEBUG "mc_energy: pair $a  $b  with flows $fflow  $bflow\n";
       $sflow +=  $fflow - $bflow; # negative net substrate transport targets more transport
    }
    foreach $pair ( @n_edges ) {
       $a = $$pair[0]; $b = $$pair[1];
       $fflow = flow( $a, $b );  $bflow = flow( $b, $a);
       print "mc_energy: pair $a  $b  with flows $fflow  $bflow\n";
+      print DEBUG "mc_energy: pair $a  $b  with flows $fflow  $bflow\n";
       $nflow +=  $fflow - $bflow; # negative net substrate transport targets more transport
    }
    if ( $proof==1 ) {
@@ -1428,12 +1483,14 @@ sub mc_energy {
          $a = $$pair[0]; $b = $$pair[1];
          $fflow = flow( $a, $b );  $bflow = flow( $b, $a);
          print "mc_energy: pair $a  $b  with flows $fflow  $bflow\n";
+         print DEBUG "mc_energy: pair $a  $b  with flows $fflow  $bflow\n";
          $wflow +=  $fflow - $bflow; # negative net substrate transport targets more transport
       }
       $emc = -$sflow*( abs($sflow/$wflow) )**$alpha;
       #$emc = -$sflow;
       #$emc = -($sflow/$nflow);
       #$emc = -$sflow - $alpha*$wflow;
+      print DEBUG "\nmc_energy: S flow = $sflow    W flow = $wflow    N flow = $nflow (for current trial)\n\n";
       print "\nmc_energy: S flow = $sflow    W flow = $wflow    N flow = $nflow (for current trial)\n\n";
    }
    else {
@@ -1461,8 +1518,9 @@ sub flow {
    my $i_b = $indices{$bname};
    my $pa = $pss[$i_a];
    my $kab = $rates[$i_a][$i_b];
-   #print "flow from $aname = state $i_a  to $bname = state $i_b\n";
-   #print "prob_a = $pa   k_ab = $kab\n";
+   print DEBUG "\n\n CHECKING SINGLE DIRECTION FLUX FROM A TO B: P_a * k_ab\n";
+   print DEBUG "flow from $aname = state $i_a  to $bname = state $i_b\n";
+   print DEBUG "prob_a = $pa   k_ab = $kab\n\n";
    return $pa*$kab;
 }
 
@@ -1828,6 +1886,7 @@ sub load_config_settings {
     autobot => "0",
     analysis_type => "vary_dmu_N",
     dg_sw => 2,
+    same_dg_sw => 1,
   );
   my @required_parameters = ( # Required paramters to be in config file
     "proof", "na_first", # Simulation Parameters
@@ -1837,7 +1896,8 @@ sub load_config_settings {
     "directory", #new directory for run
     "autobot", #turn on/off automation pipeline
     "analysis_type", #which type of analysis (vary dmu n,s, or w)
-    "dg_sw" # set dg_sw (different binding energy of W to S)
+    "dg_sw", # set dg_sw (different binding energy of W to S)
+    "same_dg_sw", # same energies for OF-Sb -> IF-Sb as OF-Wb -> IF-Wb
   );
   my %config;
   Config::Simple->import_from( $config_file, \%config);
