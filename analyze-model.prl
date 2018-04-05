@@ -58,6 +58,7 @@ $nsteps = 1e2;
 $dmu_inc = ( $dmu_fin - $dmu_init ) / $nsteps;
 
 $analysis_file = "analysis-" . $analysis . "-dmu_init__$dmu_init" . "__to__" . "dmu_fin__$dmu_fin";
+
 open(ADATA, "> $analysis_file");
 print ADATA "#dmu_now   nflow  sflow  wflow\n";
 
@@ -1013,20 +1014,29 @@ if ( $n==0 || $mc_change==1 ) { # save flows for accepted moves
 }
 # print flows among physical ('alt') states (based on last accepted move)
 if ( $n%$dprint==0 ) {
+   $pathways_file = "flux_n$n.csv";
+   open(PATHWAYS, "> $pathways_file") or die;
+   print PATHWAYS "$analysis  dmu_now=$dmu_now dmu_N=$dmu_N dmu_S=$dmu_S dmu_W=$dmu_W dg_sw=$dg_SW alpha=$alpha seed=$seed enegy_model=$efile_init, emc = $emc S_flow = $sflow_save W_flow = $wflow_save N_flow = $nflow_save, 0\n";
    print "\nn = $n (Monte Carlo step number)      emc = $emc\n";
+   #print PATHWAYS "\nn = $n (Monte Carlo step number)      emc = $emc\n";
    print "S flow = $sflow_save    W flow = $wflow_save    N flow = $nflow_save\n";
+   #print PATHWAYS "S flow = $sflow_save    W flow = $wflow_save    N flow = $nflow_save\n";
    for ( $i=0; $i<@alt_states; $i++ ) {
       $a_name = $alt_states[$i];
       print "\nOVERALL PHYSICAL FLOWS FROM STATE $a_name ...\n";
+      #print PATHWAYS "\nOVERALL PHYSICAL FLOWS FROM STATE $a_name ...\n";
       for ( $j=0; $j<@alt_states; $j++ ) {
          if ( $alt_rates[$i][$j] > 0 ) {
             $b_name = $alt_states[$j];
             $transn = $a_name . "_TO_" . $b_name;
             printf "   %s    Net flow = %6.2e\n",  $transn, $netflow_save[$i][$j];
+            printf PATHWAYS "$a_name,$b_name,$netflow_save[$i][$j] \n";
          } # end of if edges loop
       } # end of first j loop
       print "\n";
+      print PATHWAYS "\n";
    }
+close(PATHWAYS) or die;
 }
 
 # Output model (state and barrier energies) for future use

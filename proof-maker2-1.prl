@@ -14,7 +14,7 @@ use Cwd qw(chdir);
 # Monte Carlo program to explore 'model space' by using steady-state transport
 # properties as MC 'energy'.
 # Written by DM Zuckerman 2016-17
-# Additional updates by August George, Summer 2017
+# Additional updates by August George 2017-18
 # Please see README for more information
 
 # IN PROGRESS: Checked that barrier energies properly reset after rejection.
@@ -53,6 +53,7 @@ use Cwd qw(chdir);
 
 # To get estimated runtime
 my $start_time = time(); # for basic performance testing
+print "\n\nstart time: $start_time\n\n";
 
 my $config_path = "config.txt";
 %parameters = load_config_settings($config_path);
@@ -92,6 +93,7 @@ $autobot = $parameters{"autobot"}; # turn on/off automation (default = 0 = OFF)
 $analysis_type = $parameters{"analysis_type"}; #what type of analysis to do (vary dmu_N,S, or W)
 $dg_sw_config = $parameters{"dg_sw"};
 $same_dg_sw = $parameters{"same_dg_sw"};
+$n_to_sw_tied = $parameters{"n_to_sw_tied"};
 
 unless(-e $directory or mkdir $directory) { #make directory if directory does not already exist
         die "Unable to create $directory\n";
@@ -122,7 +124,7 @@ open(DEBUG, "> $debugfile") or die "Error! Cannot open $debugfile";
 srand($seed); # initializes random number generator ... should make MC repeatable
 if ( $proof==1 ) {$dg_SW = $dg_sw_config; } # amount by which binding energy of W exceeds that of S
 
-print "Simulation type: proof = $proof  na_first = $na_first same_dg_sw = $same_dg_sw\n";
+print "Simulation type: proof = $proof  na_first = $na_first same_dg_sw = $same_dg_sw n_to_sw_tied = $n_to_sw_tied \n";
 print "MC Protocol: Now using flow sflow* |sflow/wflow|**alpha\n";
 print "MC Parameters: $nsteps steps    seed = $seed    demax = $demax    alpha = $alpha\n";
 printf "MC Parameters: beta_init = %4.1e    max beta factor = %4.1e    adjusts every %d MC steps\n\n", $beta_init, $fbeta, $n_beta;
@@ -171,14 +173,16 @@ if ( $proof==1 ) {
 }
 
 #$same_dg_sw =1;
-if ($same_dg_sw == 1) { # Let bound SW conformational transitions are equivalent
+if ($same_dg_sw == 1 || $n_to_sw_tied == 1) { # Let bound SW conformational transitions are equivalent
   @tied_for_SW_bind = ();
   push @tied_for_SW_bind, ('Sb Wo', 'So Wb', 'Sb Wi', 'Si Wb');
-  print DEBUG "TESTING 1...". $tied_for_SW_bind[0]."\n";
+  #print DEBUG "TESTING 1...". $tied_for_SW_bind[0]."\n";
 }
-#$same_dg_sw =1;
-#my @tied_for_SW_bind = ('Sb Wo', 'So Wb', 'Sb Wi', 'Si Wb');
-print DEBUG "TESTING 1...". $tied_for_SW_bind[0]."\n";
+if ($n_to_sw_tied== 1) {
+  @tied_nb = ();
+  push @tied_nb, ('No Nb', 'Nb No', 'Ni Nb', 'Nb Ni');
+  #print DEBUG "tied nb".Dumper(@tied_nb);
+}
 
 
 # Slow transitions - some transitions should be slower than others
@@ -612,6 +616,8 @@ for ( $i=0; $i<@barkeys; $i++ ) {
   #print DEBUG "\nAPAIR: $apair\n";
   @apair_split = split  /-|_/, $apair; #converts string into list of substrings
 
+  #print DEBUG "a pair:$apair\n";
+
   for ($k=0; $k<$n_units; $k++) { #go through each base unit to find base transition
     if ($apair_split[$k] ne $apair_split[$k+$n_units+1] ){ #compare base units of each states. "+1" term skips over 'AND'
       @apair_trans = ("$apair_split[$k]","$apair_split[$k+$n_units+1]"); #save transition base units for comparision later "key transition"
@@ -628,14 +634,19 @@ for ( $i=0; $i<@barkeys; $i++ ) {
      #$apair_tmp = $apair;
      #$bpair_tmp = $bpair;
      $both_trans = "$apair to $bpair";
+     #print DEBUG "$both_trans\n";
+
+
+    # if ($apair eq "OF-No-Sb-Wo_AND_OF-Nb-Sb-Wo" || $bpair eq "OF-No-Sb-Wo_AND_OF-Nb-Sb-Wo"){
+    #     print DEBUG "1. $apair to $bpair\n";
+    # }
 
      $if_equiv = 0; #if_equiv = 1 if two transition states are equivalent
      $equal_base_count = 0; #tracks the number of base units that are equal/equiv
-
+     #print DEBUG "0. Checking $apair and $bpair for equivalent transition... \n";
      if ( $apair ne $bpair ) {#don't compare the same transitions
-
        if ( $bpair =~ m/$apair_trans[0]/ && $bpair =~ m/$apair_trans[1]/){ # check if second pair has same "key transition"
-
+            #print DEBUG "1. Checking $apair and $bpair for equivalent transition (standard). \n";
             for ($k=0; $k<$n_units; $k++) { #go through each base unit to find base transition
               if ($bpair_split[$k] ne $bpair_split[$k+$n_units+1] ){ #compare base units of each states. "+1" term skips over 'AND'
                 @bpair_trans = ("$bpair_split[$k]","$bpair_split[$k+$n_units+1]"); #save transition base units for comparision later "key transition"
@@ -652,12 +663,63 @@ for ( $i=0; $i<@barkeys; $i++ ) {
                        for ($n=0; $n<@tied_bases; $n++) {
                             if ( (grep /$apair_split[$m]/, @{$tied_bases[$n]}) && (grep /$bpair_split[$m]/, @{$tied_bases[$n]}) ){
                                 $equal_base_count++;
+                                if ($equal_base_count == 4){
+                                  #print DEBUG "MATCH! Equivalent transition (standard) $apair $bpair\n";
+                                }
                             }
                        }
                } # end of else { #check for equivalent bases
            }
+           
+           if ($n_to_sw_tied == 1 && $same_dg_sw == 1 ) {
+             #print DEBUG "...checking for Nb to Sb or Wb equivalent transition\n";
+             #assumes a_pair and b_pair have the same key transition.
+             #print DEBUG "$apair and $bpair\n";
+             my $match = 0;
+
+
+             if ( ($apair_split[0] eq $apair_split[0+$n_units+1]) && ($apair_split[0] eq $bpair_split[0]) && ($apair_split[0] eq $bpair_split[0+$n_units+1]) ){ # check if first base matches (OF or IF)
+
+               #print DEBUG "apair: $apair bpair: $bpair\n";
+               my $apair_key_trans = "$apair_trans[0] $apair_trans[1]";
+               my $bpair_key_trans = "$bpair_trans[0] $bpair_trans[1]";
+               #print DEBUG "   key transitions (apair bpair): $apair_key_trans $bpair_key_trans\n";
+
+
+               foreach my $tlist2 (@tied_nb){ #check if n bound transition
+                 if ($apair_key_trans eq $tlist2){ #check apair for n bound transition
+                   foreach my $tlist3 (@tied_nb){
+                     if ($bpair_key_trans eq $tlist3){ #check bpair for n bound transition
+                       $match = 1;
+                     }
+                   }
+                 }
+
+               }
+
+               if ( $match ==1){ #check if in tied_for_sw list (So Wb, Si Wb, Sb Wo, Sb Wi)
+                    # check if last two terms are in extra tied states group
+                    $a_sw_pair = "$apair_split[2] $apair_split[3]";
+                    $b_sw_pair = "$bpair_split[2] $bpair_split[3]";
+                    #print DEBUG "$apair $apair_split[2] $apair_split[3] and $bpair $bpair_split[2] $bpair_split[3]\n";
+                    foreach my $element (@tied_for_SW_bind) {
+                      if ( $element eq $a_sw_pair ){
+                        foreach my $element2 (@tied_for_SW_bind){
+                          if ( $element2 eq $b_sw_pair ){
+                            $equal_base_count = 4;# set equal base count to 4
+                            print DEBUG "MATCH! Equivalant transition (Nb to Sb or Wb) $apair and $bpair  \n";
+
+                          }
+                         }
+                       }
+                      }
+                 }
+
+               }
+             }
 
            if ($proof==1 && $same_dg_sw == 1) { # S and W bound conformational transitions are equivalent
+           #print DEBUG "3. checking for Sb or Wb equivalent conformational transition\n";
            if ($apair_split[0] eq "XX" && $bpair_split[0] eq "XX"){
              if ($apair_split[0] eq $apair_split[0+$n_units+1]  && $apair_split[0] eq $bpair_split[0]  && $apair_split[0] eq $bpair_split[0+$n_units+1] ){
                if ($apair_split[1] eq $apair_split[1+$n_units+1]  && $apair_split[1] eq $bpair_split[1] && $apair_split[1] eq $bpair_split[1+$n_units+1] ){
@@ -668,7 +730,7 @@ for ( $i=0; $i<@barkeys; $i++ ) {
 
                  #print DEBUG "$a_sw_pair and $b_sw_pair\n";
 
-                 foreach my $element (@tied_for_SW_bind) {
+                 foreach  $element (@tied_for_SW_bind) {
                    #print DEBUG "i: $element\n";
                    if ( $element eq $a_sw_pair ){
                      #print DEBUG "  A: $a_sw_pair is in tied SW list \n";
@@ -676,30 +738,25 @@ for ( $i=0; $i<@barkeys; $i++ ) {
                        #print DEBUG "    j: $element2\n";
                        if ( $element2 eq $b_sw_pair ){
                          #print DEBUG "      B: $b_sw_pair is in tied SW list \n";
-                         print DEBUG "         $apair and $bpair <- SW confomrational equivalence \n";
+                         #print DEBUG "         $apair and $bpair <- SW confomrational equivalence \n";
                          $equal_base_count = 4;
-                         #print DEBUG "        SW Conformtional Transition Equivalence! $apair to $bpair\n";
+                         #print DEBUG "MATCH! Equivalent transition (S/W Confomrational) $apair to $bpair\n";
                        }
                      }
                    }
                  }
-
-                 #print DEBUG "tied for SW bind:" . $$tied_for_SW_bind[0] .$$tied_for_SW_bind[1]."\n";
-                 #if ( ( $tied_for_SW_bind[0] =~ m/$a_sw_pair/ || $tied_for_SW_bind[1] =~ m/$a_sw_pair/) && ( $tied_for_SW_bind[0] =~ m/$b_sw_pair/ || $tied_for_SW_bind[1] =~ m/$b_sw_pair/) ){
-                    # print DEBUG "SW equivalent conformational transition found! $a_sw_pair to $b_sw_pair is in  \n";
-                     #$equal_base_count = 4;
-                 #}
-
                }
              }
             }
            }
 
       }
+
       else {
+        #print DEBUG "3.1 $apair and $bpair do not have same key transition!\n";
         if ($proof == 1) { #if psuedo equivalent, will set apair and bpair to XF NX XX XX
         $psuedo_equiv = 0;
-
+        #print DEBUG "4. checking for proofreading equivalent transition\n";
         for ($k=0; $k<$n_units; $k++) { #go through each base unit to find base transition
           if ($bpair_split[$k] ne $bpair_split[$k+$n_units+1] ){ #compare base units of each states. "+1" term skips over 'AND'
             @bpair_trans = ("$bpair_split[$k]","$bpair_split[$k+$n_units+1]"); #save transition base units for comparision later "key transition"
@@ -714,12 +771,12 @@ for ( $i=0; $i<@barkeys; $i++ ) {
 
 
           if ( ( $$tlist[0] =~ m/$apair_trans[0]/ && $$tlist[0] =~ m/$apair_trans[1]/) && ( $$tlist[1] =~ m/$bpair_trans[0]/ && $$tlist[1] =~ m/$bpair_trans[1]/) )  {
-            #print DEBUG "psuedo-equivalent base unit transition! $apair_trans[0] $apair_trans[1] is in $$tlist[0] AND $bpair_trans[0] $bpair_trans[1] is in $$tlist[1]\n";
+            #print DEBUG "4.1 psuedo-equivalent base unit transition! $apair_trans[0] $apair_trans[1] is in $$tlist[0] AND $bpair_trans[0] $bpair_trans[1] is in $$tlist[1]\n";
             #need to set apair and bpair split last 2 terms to XX
             $psuedo_equiv = 1;
             $equal_base_count = 2;
           } elsif ( ( $$tlist[1] =~ m/$apair_trans[0]/ && $$tlist[1] =~ m/$apair_trans[1]/) && ( $$tlist[0] =~ m/$bpair_trans[0]/ && $$tlist[0] =~ m/$bpair_trans[1]/) ) {
-            #print DEBUG "psuedo-equivalent base unit transition! $apair_trans[0] $apair_trans[1] is in $$tlist[1] AND $bpair_trans[0] $bpair_trans[1] is in $$tlist[0]\n";
+            #print DEBUG "4.2 psuedo-equivalent base unit transition! $apair_trans[0] $apair_trans[1] is in $$tlist[1] AND $bpair_trans[0] $bpair_trans[1] is in $$tlist[0]\n";
             $psuedo_equiv = 1;
             $equal_base_count = 2;
           }
@@ -729,10 +786,16 @@ for ( $i=0; $i<@barkeys; $i++ ) {
           for ($m=0; $m<($n_units-2); $m++){ #last two are equivalent (so skip, ASSUMES psuedo equiv are at the end!)
               if ($apair_split[$m] eq $bpair_split[$m] ){ #check for equal bases
                   $equal_base_count++;
+                  if ($equal_base_count == 4){
+                    #print DEBUG "MATCH! Equivalent transition (proof-reading) $apair $bpair\n";
+                  }
                } else { #check for equivalent bases
                       for ($n=0; $n<@tied_bases; $n++) {
                            if ( (grep /$apair_split[$m]/, @{$tied_bases[$n]}) && (grep /$bpair_split[$m]/, @{$tied_bases[$n]}) ){
                                $equal_base_count++;
+                               if ($equal_base_count == 4){
+                                 #print DEBUG "MATCH! Equivalent transition (proof-reading) $apair $bpair\n";
+                               }
                            }
                       }
               } # end of else { #check for equivalent bases
@@ -741,6 +804,59 @@ for ( $i=0; $i<@barkeys; $i++ ) {
       #print DEBUG "equal base count = $equal_base_count\n";
       } # end of if ($proofreading)
      } # end of else
+
+
+     # if ($n_to_sw_tied == 1 && $same_dg_sw == 1 ) {
+     #   #print DEBUG "...checking for Nb to Sb or Wb equivalent transition\n";
+     #   #assumes a_pair and b_pair have the same key transition.
+     #   #print DEBUG "$apair and $bpair\n";
+     #   my $match = 0;
+     #
+     #   if ( ($apair_split[0] eq $apair_split[0+$n_units+1]) && ($apair_split[0] eq $bpair_split[0]) && ($apair_split[0] eq $bpair_split[0+$n_units+1]) ){ # check if first base matches (OF or IF)
+     #
+     #     #print DEBUG "apair: $apair bpair: $bpair\n";
+     #     my $apair_key_trans = "$apair_trans[0] $apair_trans[1]";
+     #     my $bpair_key_trans = "$bpair_trans[0] $bpair_trans[1]";
+     #     #print DEBUG "   key transitions (apair bpair): $apair_key_trans $bpair_key_trans\n";
+     #
+     #     foreach my $tlist2 (@tied_nb){ #check if n bound transition
+     #       if ($apair_key_trans eq $tlist2){ #check apair for n bound transition
+     #         foreach my $tlist3 (@tied_nb){
+     #           if ($bpair_key_trans eq $tlist3){ #check bpair for n bound transition
+     #             $match = 1;
+     #
+     #           }
+     #         }
+     #       }
+     #
+     #     }
+     #
+     #     if ( $match ==1){ #check if in tied_for_sw list (So Wb, Si Wb, Sb Wo, Sb Wi)
+     #          # check if last two terms are in extra tied states group
+     #          $a_sw_pair = "$apair_split[2] $apair_split[3]";
+     #          $b_sw_pair = "$bpair_split[2] $bpair_split[3]";
+     #          #print DEBUG "$apair $apair_split[2] $apair_split[3] and $bpair $bpair_split[2] $bpair_split[3]\n";
+     #          foreach my $element (@tied_for_SW_bind) {
+     #            if ( $element eq $a_sw_pair ){
+     #              foreach my $element2 (@tied_for_SW_bind){
+     #                if ( $element2 eq $b_sw_pair ){
+     #                  $equal_base_count = 4;# set equal base count to 4
+     #                  #print DEBUG "MATCH! Equivalant transition (Nb to Sb or Wb) $apair and $bpair  \n";
+     #
+     #                  if ($apair eq "OF-No-Sb-Wo_AND_OF-Nb-Sb-Wo" || $bpair eq "OF-No-Sb-Wo_AND_OF-Nb-Sb-Wo"){
+     #                                 print DEBUG "$apair to $bpair\n";
+     #                  }
+     #
+     #                }
+     #               }
+     #             }
+     #            }
+     #       }
+     #
+     #     }
+     #   }
+
+
      } # end of if ( $apair ne $bpair )
 
      if ($equal_base_count eq $n_units){ #each base unit must match
@@ -750,7 +866,7 @@ for ( $i=0; $i<@barkeys; $i++ ) {
      if ( $if_equiv==1 ) {
         $etcount ++ ;
         print ".. Equivalent transition $etcount: $both_trans\n";
-        print DEBUG ".. Equivalent transition $etcount: $both_trans\n";
+        #print DEBUG ".. Equivalent transition $etcount: $both_trans\n";
         push @equiv_transns, [ $apair, $bpair ];
 
         push @tmp_transition_state_list, $apair;
@@ -759,7 +875,9 @@ for ( $i=0; $i<@barkeys; $i++ ) {
         $hash_equiv_transns{"$equiv_tansns_name"} = "1";
 
      }
+     #print DEBUG "\n";
   } # end of j loop
+  #*-print DEBUG "\n";
 } # end of i loop
 
 #print DEBUG "ebars\n".Dumper(%ebars);
@@ -813,7 +931,7 @@ matrix_to_csv(\@transition_energy_matrix, "transition_state_energy_matrix.csv", 
 print "\nLists of equivalent transitions\n";
 foreach $list ( @equiv_lists_tr ) {
   print "Equiv list: @{$list}\n";
-  print DEBUG "Equiv list: @{$list}\n";
+  #print DEBUG "Equiv list: @{$list}\n";
 }
 
 # uses python script to generate (from graph) connected states/energies and initialize MC model
@@ -822,7 +940,7 @@ my ($connected_states, $connected_transitions) = import_from_python();
 print "connected states\n".Dumper($connected_states);
 print "connected transitions\n".Dumper($connected_transitions);
 
-initial_model($connected_states, $connected_transitions);#not using connected transitions, transitions are correctly made in perl script, python checks consistency
+initial_model($connected_states, $connected_transitions);
 
 # Put the same info into more useful hashes
 ( $ref_one, $ref_two ) = equiv_hashes_from_list ( \@equiv_lists_tr );
@@ -831,7 +949,7 @@ initial_model($connected_states, $connected_transitions);#not using connected tr
 
 # assign energies for barriers
 foreach $pair ( @barkeys ) { # loop over all barriers
-   adjust_tied_barriers( $pair, $ebars{$pair} );
+  adjust_tied_barriers( $pair, $ebars{$pair} );
 }
 
 
@@ -882,9 +1000,20 @@ for ( $n=0; $n<=$nsteps; $n++ ) { # MONTE CARLO LOOP
 
 print MCFILE "\nMonte Carlo loop: n = $n\n\n";
 print "\nMonte Carlo loop: n = $n\n\n";
+print DEBUG "\nMonte Carlo loop: n = $n\n\n";
+
+
+unit_test_tied_list($connected_states, "states" );
+unit_test_tied_list($connected_transitions, "transitions");
+print_energies($connected_states, "states");
+print_energies($connected_transitions, "transitions");
+
+$old_connected_states = $connected_states;
+$old_connected_transitions = $connected_transitions;
 
 ## Trial move
 if ( $n>0 ) {
+
    # choose random state or transition-state energy to perturb
    if ( rand() < 0.5 ) { # trial move is perturbation to state energy
       #print DEBUG "pre-trial state energies = \n".Dumper(%energies);
@@ -928,7 +1057,8 @@ if ( $n>0 ) {
       $ebars{$bartmp} = $new_energy;
       print MCFILE "Perturb transition state $bartmp by delta_e=$delta_e from $old_energy to (non-negative) $new_energy\n";
       #print DEBUG "Perturb transition state $bartmp by delta_e=$delta_e from $old_energy to (non-negative) $new_energy\n";
-      adjust_tied_barriers( $bartmp, $new_energy );
+      #adjust_tied_barriers2( $bartmp, $new_energy );
+      adjust_tied_barriers2( $bartmp, $connected_transitions, $delta_e);
    }
 }
 
@@ -1130,20 +1260,22 @@ if ( $n>0 ) { # check if move accepted
       $mc_change = 0;
       $accept_ratio = $n_accept/$n;
       print MCFILE "Move rejected!!!    Acceptance ratio = $accept_ratio\n";
-      #print DEBUG "Move rejected!!!    Acceptance ratio = $accept_ratio\n";
+      print DEBUG "Move rejected!!!    Acceptance ratio = $accept_ratio\n";
       if ( $state_move == 1 ) { # state energy was changed - change back
          $energies{$tmpstate} = $old_energy;
          print MCFILE "State rejection: Change back state $tmpstate to $energies{$tmpstate}\n";
-         #print DEBUG "State rejection: Change back state $tmpstate to $energies{$tmpstate}\n";
+         print DEBUG "State rejection: Change back state $tmpstate to $energies{$tmpstate}\n";
          adjust_tied_energies2( $tmpstate, $connected_states, (-1.0*$delta_e)); #note: negative change in energy used to reset
          #print DEBUG "state energies reset = \n".Dumper(%energies);
+         unit_test_check_restored_energies($old_connected_states, $connected_states, "states");
       }
       else { # transition state energy was changed - change back
          $ebars{$bartmp} = $old_energy;
          print MCFILE "Barrier rejection: Change back transition state $bartmp to  $ebars{$bartmp}\n";
-         #print DEBUG "Barrier rejection: Change back transition state $bartmp to  $ebars{$bartmp}\n";
-         adjust_tied_barriers( $bartmp, $old_energy );
+         print DEBUG "Barrier rejection: Change back transition state $bartmp to  $ebars{$bartmp}\n";
+         adjust_tied_barriers2( $bartmp, $connected_transitions, (-1.0*$delta_e)); #note: negative change in energy used to reset
          #print DEBUG "barrier energies reset = \n".Dumper(%ebars);
+         unit_test_check_restored_energies($old_connected_transitions, $connected_transitions, "transitions");
       }
       $emc = $emc_old;
    }
@@ -1460,7 +1592,7 @@ sub state_print { # print states and energies
 }
 
 sub mc_energy {
-   print DEBUG "\n\nCALCULATING MC ENERGY...\n\n";
+   #print DEBUG "\n\nCALCULATING MC ENERGY...\n\n";
    my $a; my $b; my $emc = 0.0;
    my $fflow; my $bflow;
    my $sflow = 0.0; my $wflow = 0.0; my $nflow = 0.0;
@@ -1468,14 +1600,14 @@ sub mc_energy {
       $a = $$pair[0]; $b = $$pair[1];
       $fflow = flow( $a, $b );  $bflow = flow( $b, $a);
       print "mc_energy: pair $a  $b  with flows $fflow  $bflow\n";
-      print DEBUG "mc_energy: pair $a  $b  with flows $fflow  $bflow\n";
+      #print DEBUG "mc_energy: pair $a  $b  with flows $fflow  $bflow\n";
       $sflow +=  $fflow - $bflow; # negative net substrate transport targets more transport
    }
    foreach $pair ( @n_edges ) {
       $a = $$pair[0]; $b = $$pair[1];
       $fflow = flow( $a, $b );  $bflow = flow( $b, $a);
       print "mc_energy: pair $a  $b  with flows $fflow  $bflow\n";
-      print DEBUG "mc_energy: pair $a  $b  with flows $fflow  $bflow\n";
+      #print DEBUG "mc_energy: pair $a  $b  with flows $fflow  $bflow\n";
       $nflow +=  $fflow - $bflow; # negative net substrate transport targets more transport
    }
    if ( $proof==1 ) {
@@ -1483,14 +1615,14 @@ sub mc_energy {
          $a = $$pair[0]; $b = $$pair[1];
          $fflow = flow( $a, $b );  $bflow = flow( $b, $a);
          print "mc_energy: pair $a  $b  with flows $fflow  $bflow\n";
-         print DEBUG "mc_energy: pair $a  $b  with flows $fflow  $bflow\n";
+         #print DEBUG "mc_energy: pair $a  $b  with flows $fflow  $bflow\n";
          $wflow +=  $fflow - $bflow; # negative net substrate transport targets more transport
       }
       $emc = -$sflow*( abs($sflow/$wflow) )**$alpha;
       #$emc = -$sflow;
       #$emc = -($sflow/$nflow);
       #$emc = -$sflow - $alpha*$wflow;
-      print DEBUG "\nmc_energy: S flow = $sflow    W flow = $wflow    N flow = $nflow (for current trial)\n\n";
+      #print DEBUG "\nmc_energy: S flow = $sflow    W flow = $wflow    N flow = $nflow (for current trial)\n\n";
       print "\nmc_energy: S flow = $sflow    W flow = $wflow    N flow = $nflow (for current trial)\n\n";
    }
    else {
@@ -1518,9 +1650,9 @@ sub flow {
    my $i_b = $indices{$bname};
    my $pa = $pss[$i_a];
    my $kab = $rates[$i_a][$i_b];
-   print DEBUG "\n\n CHECKING SINGLE DIRECTION FLUX FROM A TO B: P_a * k_ab\n";
-   print DEBUG "flow from $aname = state $i_a  to $bname = state $i_b\n";
-   print DEBUG "prob_a = $pa   k_ab = $kab\n\n";
+   #print DEBUG "\n\n CHECKING SINGLE DIRECTION FLUX FROM A TO B: P_a * k_ab\n";
+   #print DEBUG "flow from $aname = state $i_a  to $bname = state $i_b\n";
+   #print DEBUG "prob_a = $pa   k_ab = $kab\n\n";
    return $pa*$kab;
 }
 
@@ -1820,9 +1952,60 @@ sub initial_model {
   my $connected_transitions_ref2 = $_[1]; # not being used currently, energies are assigned previously in program, python used to check consistency
 
   my %connected_states_deref = %{$connected_states_ref2};
+  my %connected_transitions_deref = %{$connected_transitions_ref2};
+
   print "intializing state energies model with ref nodes E = 0 ...\n";
   foreach $reference_state ( keys %connected_states_deref) {
      adjust_tied_energies2( $reference_state, $connected_states_ref2, 0.0);
+  }
+
+  print "initializing transition energies model with energies = ebump ($ebump) or ebump + ebarslow ($ebump+$ebarslow) 100 (if a slow transition)\n";
+  foreach $key (keys %connected_transitions_deref){
+    foreach $key_in_key (keys %{$connected_transitions_deref{$key}}){
+      if (grep { $key_in_key eq $_ } @slowpairs){
+          print "transition $key_in_key is in slowies. Set energy = $ebarslow + $ebump\n";
+          #print DEBUG "transition $key_in_key is in slowies. Set energy = $ebarslow + $ebump\n";
+          $connected_transitions_deref{$key}{$key_in_key} = $ebarslow + $ebump;
+          $ebars{$key_in_key} = $ebarslow + $ebump;
+      } else{
+          print "transition $key_in_key is NOT in slowies. Set energy = $ebump\n";
+          #print DEBUG "transition $key_in_key is NOT in slowies. Set energy = $ebump\n";
+          $connected_transitions_deref{$key}{$key_in_key} = $ebump;
+          $ebars{$key_in_key} = $ebump;
+      }
+      #print transitions and barriers for initial model...
+
+    }
+  }
+
+#unit test
+print_energies($connected_states_ref2, "States");
+print_energies($connected_transitions_ref2, "Transitions");
+print "model has been initialized!\n";
+print DEBUG "model has been initialized!\n";
+}
+
+sub adjust_tied_barriers2 { # takes in perturbed_state, connected_states_ref, and energy_pertubation
+  my $perturbed_barrier = $_[0];
+  my $connected_barriers_ref = $_[1];
+  my $barrier_energy_pertubation = $_[2];
+  my %connected_barriers_deref = %{$connected_barriers_ref};
+  print "perturbed_state: $perturbed_barrier \n";
+  #search for connected subgraph of perturbed state
+  #search 1st level for match
+  foreach $key (keys %connected_barriers_deref){
+    foreach $key_in_key (keys %{$connected_barriers_deref{$key}}){
+      if ($key_in_key eq $perturbed_barrier){
+          #print "found perturbed_state! = $key_in_key\n";
+          foreach $key_in_key (keys %{$connected_barriers_deref{$key}}){
+            $previous_energy = $connected_barriers_deref{$key}{$key_in_key};
+            $new_energy = $previous_energy + $barrier_energy_pertubation;
+            $connected_barriers_deref{$key}{$key_in_key} = $new_energy;
+            $ebars{$key_in_key} = $new_energy;
+            #print "state $key_in_key energy set from $previous_energy to $new_energy\n";
+          }
+      }
+    }
   }
 }
 
@@ -1887,6 +2070,7 @@ sub load_config_settings {
     analysis_type => "vary_dmu_N",
     dg_sw => 2,
     same_dg_sw => 1,
+    n_to_sw_tied => 1,
   );
   my @required_parameters = ( # Required paramters to be in config file
     "proof", "na_first", # Simulation Parameters
@@ -1898,6 +2082,7 @@ sub load_config_settings {
     "analysis_type", #which type of analysis (vary dmu n,s, or w)
     "dg_sw", # set dg_sw (different binding energy of W to S)
     "same_dg_sw", # same energies for OF-Sb -> IF-Sb as OF-Wb -> IF-Wb
+    "n_to_sw_tied", # used to tie Sb->Nb-Sb with Wb->Nb-Sb
   );
   my %config;
   Config::Simple->import_from( $config_file, \%config);
@@ -1909,7 +2094,96 @@ sub load_config_settings {
   return %settings;
 }
 
+#inputs: list of equivalent states and energies
+#outputs: boolean flag
+#check if tied states have same energies and outputs true if they do.
+sub unit_test_tied_list{
+  $connected_list_ref = $_[0];
+  my $list_label = $_[1];
+  my %connected_list_deref = %{$connected_list_ref};
+  my $test_energy = 0;
+  my $test_energy2 = 0;
+  my $test_fail_flag = 0;
+  #print DEBUG "n = $n\n";
+  #print DEBUG "connected list = ".Dumper(%connected_list_deref)."\n";
+  #check for energy equivalence
+  foreach $key (keys %connected_list_deref){
+     #print DEBUG "key = $key\n";
+     foreach $key_in_key (keys %{$connected_list_deref{$key}}){
+         $test_energy = $connected_list_deref{$key}{$key_in_key};
+         #print DEBUG "key_in_key = $key_in_key energy = $test_energy \n";
+         foreach $key_in_key2 (keys %{$connected_list_deref{$key}}){
+           $test_energy2 = $connected_list_deref{$key}{$key_in_key2};
+           #print DEBUG "key_in_key2 = $key_in_key2 energy2 = $test_energy2 \n";
+           if ($test_energy != $test_energy2) {
+             $test_fail_flag = 1;
+             print DEBUG "TEST FAILED! $list_label connected list is not equivalent. \n";
+             print DEBUG "key = $key, key_in_key = $key_in_key, key_in_key2 = $key_in_key2\n";
+             print DEBUG "energy = $test_energy, energy = $test_energy2 \n";
+           }
+         }
+     }
+  }
+  if ($test_fail_flag == 1){
+    print "Failed unit test. Energies in $list_label connected list are NOT equivalent!\n";
+    print DEBUG "Failed unit test. Energies in $list_label connected list are NOT equivalent!\n";
+  } else {
+    print "Passed unit test. Energies in $list_label connected list are equivalent!\n";
+    print DEBUG "Passed unit test. Energies in $list_label connected list are equivalent!\n";
+  }
+
+}
+
+#used to check if energies before/after are the same
+sub unit_test_check_restored_energies {
+  my $dictionary1_ref = $_[0];
+  my $dictionary2_ref = $_[1];
+  my $test_label = $_[2];
+  my %dictionary1_deref = %{$dictionary1_ref};
+  my %dictionary2_deref = %{$dictionary2_ref};
+  my $test_fail_flag = 0;
+
+  #print DEBUG "n = $n\n";
+
+  foreach $key (keys %dictionary1_deref){
+     #print DEBUG "key = $key\n";
+     foreach $key_in_key (keys %{$dictionary1_deref{$key}}){
+         if ($dictionary1_deref{$key}{$key_in_key} != $dictionary2_deref{$key}{$key_in_key} ) {
+           $test_fail_flag = 1;
+           print DEBUG "TEST FAILED! $test_label\n";
+           print DEBUG "key = $key, key_in_key = $key_in_key\n";
+         }
+     }
+  }
+  if ($test_fail_flag == 1){
+    print "Failed unit test. Energies are NOT restored. $test_label\n";
+    print DEBUG "Failed unit test. Energies are NOT restored. $test_label \n";
+  } else {
+    print "Passed unit test. Energies are restored. $test_label\n";
+    print DEBUG "Passed unit test. Energies are restored. $test_label\n";
+  }
+}
+
+sub print_energies {
+  my $energy_dictionary_ref = $_[0];
+  my $energy_label = $_[1];
+  my %energy_dictionary_deref = %{$energy_dictionary_ref};
+
+  print DEBUG "Printing Energies for $energy_label...\n\n";
+
+  foreach $key (keys %energy_dictionary_deref){
+     print DEBUG "key = $key\n";
+     foreach $key_in_key (keys %{$energy_dictionary_deref{$key}}){
+         print DEBUG "key = $key_in_key value = $energy_dictionary_deref{$key}{$key_in_key} \n";
+     }
+     print DEBUG "\n";
+  }
+  print "\n";
+}
+
+
 # Caculates and prints script runtime in seconds
 my $end_time = time();
+print "\n\n end time: $end_time \n\n";
 my $run_time = $end_time - $start_time;
 print "Script runtime (s): $run_time for MC n = $nsteps \n";
