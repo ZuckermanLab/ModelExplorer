@@ -1,0 +1,10 @@
+#proof-maker config file (using config::simple)
+#Defaults are listed in readme
+#format 'keyname value' with space as delimiter.
+#no comments on same line as key/value pair
+
+nsteps 1e4
+alpha 0
+seed 77777777
+directory proof_maker_test_new_script_s7777777
+autobot 1
