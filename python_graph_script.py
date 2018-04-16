@@ -12,7 +12,7 @@
 # Note: Unused subroutine to draw and save a graph image (.png) as well as generate test data
 # Possible Improvements: fine tuning graph layout for images
 #
-# IN PROGRESS: Adding transition/barriers
+# IN PROGRESS: Adding transition/barriers  
 
 #todo: check  subgraphs, pruned graphs, and output data
 

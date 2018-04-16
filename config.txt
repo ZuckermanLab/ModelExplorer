@@ -5,6 +5,10 @@
 
 nsteps 1e4
 alpha 0
-seed 77777777
-directory proof_maker_test_new_script_s7777777
-autobot 1
+seed 135753
+directory SW_TESTING1_dgsw_05_v2
+autobot 0
+dmu_W 0
+na_first 0
+dg_sw 0.5
+

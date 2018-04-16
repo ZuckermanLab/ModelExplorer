@@ -1,10 +1,11 @@
 Transporter State Space Modeling README
 
+NOTE: The software is frequently updated to include better pipelining, automation, configuration, and analysis capabilities, as well as any bugs that we find.
+The readme might not be 100% up-to-date on the latest changes to the GitHub repo. Automation is still a WIP. Use at your own risk!  
+
 README.txt written by August George with help from Dr. Zuckerman.
 Proof-maker.prl written by Dr. Zuckerman and updated/modified by August George.
 Analyze-model.prl written by Dr. Zuckerman and updated/modified by August George.
-
-Dec 6 update: energy and barrier groupings have been corrected/validated using python script. Also, randomness bug has been fixed. Support for run directory added.
 
 Readme TODO: METHODOLOGY,more assumptions?, update with bug fix and improvements, update everything!.
 
@@ -255,8 +256,8 @@ Proof-maker Unit Tests to Add:
 (2) Ratio of rates for a state pair give Boltz fac of energy difference
 (3) Energy differences among tied states match constraints (state "energy landscape" is set in python script, then initialized in perl)
 (4) Energies of fixed states remain at constrained values (state "energy landscape" is set in python script, then initialized in perl)
-(5) Reject/Restore step properly restores energies
-(6) Tied states graphs are self-consistent (done in python, but can be better integrated into perl code, which currently loads boolean "consistent" variable from file)
+(5) Reject/Restore step properly restores energies (done in perl)
+(6) Tied states graphs are self-consistent (done in python, but can be better integrated into perl code, which currently loads boolean "consistent" variable from file) 
 
 Proof-maker Improvements:
 *Should OF-IF conformational transistions be equivalent (when N, S, and W are held constant)?
@@ -279,6 +280,9 @@ General Tweaks:
 *other ways to generate more models per run?
 
 9. CHANGE LOG:
+
+Update 5: (2017-04-01): Added improved pipeline, automation, analysis, and graphing capabilities. Added functionality to tie together states for dg_SW ( might still have bugs). Added unit tests 
+for energy restoration, cycle consitency, energy consistency and list consistency. 
 
 Update 4 (2017-12-6): "Transition  energies not restored after rejection " bug has been fixed using new python script. Similar issue as "State energies not restored after rejection" bug.
 Implemented new proof-maker algorithm to correctly group equivalent transitions and reused python script to validate.
