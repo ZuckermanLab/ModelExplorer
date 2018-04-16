@@ -1068,6 +1068,8 @@ close(DATA);
 close(FLOWS);
 close(ADATA);
 
+$pathway_grapher = "graph_pathways.py";
+call_python_pathway_grapher();
 
 #### Subroutines
 sub initialize_barriers { # initialize barrier energies and edges array
@@ -1628,4 +1630,11 @@ sub load_config_settings {
   my %settings = (%default_parameters, %config );
   #print "settings: \n". Dumper(%settings)."\n";
   return %settings;
+}
+
+
+
+sub call_python_pathway_grapher {
+
+system("python $pathway_grapher > pathway_graphing_log");
 }
