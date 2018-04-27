@@ -2,11 +2,11 @@
 set terminal  pngcairo size 1400, 1000
 
 
-PATH = "C:\\Users\\georgeau\\Desktop\\Zuckerman_Lab\\PROOF_MAKER\\RUNS\\SW_TESTING1_dgsw_05_v2"
+PATH = "C:\\Users\\georgeau\\Desktop\\find_min"
 
 DATAFILE1 = PATH."\\evolver_rates.dat"
 
-TITLE = "Model-Space Explorer: MC Energy Trajectory \n{/*0.85 MC Energy = -sflow*|sflow/wflow|^a^l^p^h^a} \n{/*0.85 alpha = 0.0, seed = 135753, n steps = 1e4, dmu w = 2, Na first constraint on, dg sw = 0.5}"
+TITLE = "Model-Space Explorer: MC Energy Trajectory \n{/*0.85 MC Energy = -sflow*|sflow/wflow|^a^l^p^h^a} \n{/*0.85 alpha = 0.0, seed = 135753, n steps = 1e4, dmu w = 2, Na first constraint on, dg sw = 1}"
 OUTPUT = PATH."\\mc_graph.png"
 
 set output OUTPUT

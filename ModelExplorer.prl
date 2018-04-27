@@ -93,8 +93,11 @@ $logfile = $parameters{"logfile"}; # console output to log file
 $autobot = $parameters{"autobot"}; # turn on/off automation (default = 0 = OFF)
 $analysis_type = $parameters{"analysis_type"}; #what type of analysis to do (vary dmu_N,S, or W)
 $dg_sw_config = $parameters{"dg_sw"};
-$same_dg_sw = $parameters{"same_dg_sw"};
-$n_to_sw_tied = $parameters{"n_to_sw_tied"};
+$Sb_Wb_tied = $parameters{"Sb_Wb_tied"}; #controls how "tied" Sb and Wb barriers are ...
+#... 0: No tied barriers, ...
+#... 1: S (un)binding barriers = W (un)binding barrers (i.e. So->Sb = Wo->Wb), ...
+#... 2: Transition w/ Sb state = Transition w/ Wb state (i.e. OF-Sb->IF-Sb = OF-Wb->IF-Wb), ...
+#... 3: both 1 and 2
 
 unless(-e $directory or mkdir $directory) { #make directory if directory does not already exist
         die "Unable to create $directory\n";
@@ -124,8 +127,9 @@ open(DEBUG, "> $debugfile") or die "Error! Cannot open $debugfile";
 
 srand($seed); # initializes random number generator ... should make MC repeatable
 if ( $proof==1 ) {$dg_SW = $dg_sw_config; } # amount by which binding energy of W exceeds that of S
+if ($proof!=1){$Sb_Wb_tied =0 };
 
-print "Simulation type: proof = $proof  na_first = $na_first same_dg_sw = $same_dg_sw n_to_sw_tied = $n_to_sw_tied \n";
+print "Simulation type: proof = $proof  na_first = $na_first Sb_Wb_tied = $Sb_Wb_tied \n";
 print "MC Protocol: Now using flow sflow* |sflow/wflow|**alpha\n";
 print "MC Parameters: $nsteps steps    seed = $seed    demax = $demax    alpha = $alpha\n";
 printf "MC Parameters: beta_init = %4.1e    max beta factor = %4.1e    adjusts every %d MC steps\n\n", $beta_init, $fbeta, $n_beta;
@@ -134,7 +138,9 @@ print "MC Parameters: pbeta_stay = $pbeta_stay    tol = $tol\n";
 print "Physical params: dmu_N = $dmu_N    dmu_S = $dmu_S    dmu_W = $dmu_W    ebarslow = $ebarslow    kzero = $kzero    ebump = $ebump";
 print "\nPhysical params: fmu_N = $fmu_N    fmu_S = $fmu_S    fmu_W = $fmu_W ";
 if ( $proof==1 ) { print "    dg_SW = $dg_SW"; }
+
 print "\n\n";
+
 
 # units (cycles) which combinatorially form states: state names fully describe states
 @state_bases = ( [ "OF", "IF" ],           # outward facing, inward facing
@@ -166,24 +172,33 @@ if ( $proof==1 ) {
    push @tied_bases_ne, [ "Sb-Wo", "Si-Wb", $dg_SW ]; #Sb-Wo tied to Si-Wb
 }
 
+
 # For proofreading, assume W and S (toxin and substrate) have same energy barrier for (un)binding
-if ( $proof==1 ) {
+# Also assume binding/conf changes w/ Sb are equiv w/ Wb (i.e. OF-No-Sb-Wo -> IF-No-Sb-Wo = OF-No-So-Wb -> IF-No-So-Wb)
+if ( $proof == 1 ) {
    @tied_for_bind = ();
-   push @tied_for_bind, [ "So Sb", "Wo Wb"]; #substrate (un)binding from outside ~ toxin (un)binding from outside
-   push @tied_for_bind, [ "Si Sb", "Wi Wb"]; #substrate (un)binding from inside ~ toxin (un)binding from inside
+   push @tied_for_bind, [ "So-Wo", "So-Wb", "So-Wo", "Sb-Wo" ]; #substrate (un)binding from outside ~ toxin (un)binding from outside
+   push @tied_for_bind, [ "Si-Wi", "Si-Wb", "Si-Wi", "Sb-Wi" ]; #substrate (un)binding from inside ~ toxin (un)binding from inside
+   @Sb_Wb_tied_list = ();
+   push @Sb_Wb_tied_list, [ "Sb-Wo", "So-Wb"]; # OF-No-Sb-Wo -> IF-No-Sb-Wo = OF-No-So-Wb -> IF-No-So-Wb
+   push @Sb_Wb_tied_list, [ "Sb-Wo", "Si-Wb"];
+   push @Sb_Wb_tied_list, [ "Sb-Wi", "So-Wb"];
+   push @Sb_Wb_tied_list, [ "Sb-Wi", "So-Wb"];
+
 }
 
+
 #$same_dg_sw =1;
-if ($same_dg_sw == 1 || $n_to_sw_tied == 1) { # Let bound SW conformational transitions are equivalent
-  @tied_for_SW_bind = ();
-  push @tied_for_SW_bind, ('Sb Wo', 'So Wb', 'Sb Wi', 'Si Wb');
+#if ($same_dg_sw == 1 || $n_to_sw_tied == 1) { # Let bound SW conformational transitions are equivalent
+  #@tied_for_SW_bind = ();
+  #push @tied_for_SW_bind, ('Sb Wo', 'So Wb', 'Sb Wi', 'Si Wb');
   #print DEBUG "TESTING 1...". $tied_for_SW_bind[0]."\n";
-}
-if ($n_to_sw_tied== 1) {
-  @tied_nb = ();
-  push @tied_nb, ('No Nb', 'Nb No', 'Ni Nb', 'Nb Ni');
+#}
+#if ($n_to_sw_tied== 1) {
+  #@tied_nb = ();
+  #push @tied_nb, ('No Nb', 'Nb No', 'Ni Nb', 'Nb Ni');
   #print DEBUG "tied nb".Dumper(@tied_nb);
-}
+#}
 
 
 # Slow transitions - some transitions should be slower than others
@@ -471,24 +486,24 @@ for ( $i=0; $i<$nstates; $i++ ) {
       $jname = $snames[$j]; $bname = $jname;
       $etmp = 0;
       $nchange = 0; # counter for number of changes to make identical
-      #print "Checking states $i = $iname and $j = $jname\n";
+      #print DEBUG "Checking states $i = $iname and $j = $jname\n";
       foreach $list ( @tied_bases_ne ) {
          $uref = $$list[0]; $uto = $$list[1]; $delmu = $$list[2];
-         #print ".. tied: from $uref to $uto delta_mu = $delmu\n";
+         #print DEBUG ".. tied: from $uref to $uto delta_mu = $delmu\n";
          if ( $iname =~ /$uref/ && $jname =~ /$uto/ ) {
             $etmp += $delmu;
-            #print ".... Match!  etmp now = $etmp";
+            #print DEBUG ".... Match!  etmp now = $etmp";
             $iname =~ s/$uref/XX/;
             $jname =~ s/$uto/XX/;
-            #print " .. new names: iname=$iname  jname=$jname\n";
+            #print DEBUG " .. new names: iname=$iname  jname=$jname\n";
             $nchange ++ ;
          }
          elsif ( $jname =~ /$uref/ && $iname =~ /$uto/ ) {
             $etmp -= $delmu;
-            #print ".... Match!  etmp now = $etmp";
+            #print DEBUG ".... Match!  etmp now = $etmp";
             $jname =~ s/$uref/XX/;
             $iname =~ s/$uto/XX/;
-            #print " .. new names: iname=$iname  jname=$jname\n";
+            #print DEBUG " .. new names: iname=$iname  jname=$jname\n";
             $nchange ++ ;
          }
       } # end of loop for each pair of tied bases
@@ -516,6 +531,7 @@ for ( $i=0; $i<$nstates; $i++ ) {
       #if names match...
       if ( $iname eq $jname ) {
          print "TRUE MATCH: $aname -> $bname with energy change $etmp   nchange=$nchange\n";
+         #print DEBUG "TRUE MATCH: $aname -> $bname with energy change $etmp   nchange=$nchange\n";
          push @tied_states, [ $aname, $bname ];
          push @tied_energies, [ 0.0,   $etmp ];
          $state_adjacent_matrix[$i][$j] = 1; #if states are connected, A_ij = A_ji = 1
@@ -531,7 +547,6 @@ for ( $i=0; $i<$nstates; $i++ ) {
 }
 print "\n";
 }
-
 # creates .csv from adjacency matrix and relative energies matrix
 matrix_to_csv(\@state_adjacent_matrix, "adjacent_matrix.csv", $nstates, \@snames);
 matrix_to_csv(\@state_relative_energy, "energies_matrix.csv", $nstates, \@snames);
@@ -606,234 +621,113 @@ $etcount = 0; #tracks number of equivalent transitions
 
 for ( $i=0; $i<@barkeys; $i++ ) {
   $apair = $barkeys[$i]; #pick a barrier (i.e. transition state)
-  #print DEBUG "\nAPAIR: $apair\n";
+  $apair_copy = $apair;
   @apair_split = split  /-|_/, $apair; #converts string into list of substrings
-
-  #print DEBUG "a pair:$apair\n";
-
   for ($k=0; $k<$n_units; $k++) { #go through each base unit to find base transition
     if ($apair_split[$k] ne $apair_split[$k+$n_units+1] ){ #compare base units of each states. "+1" term skips over 'AND'
       @apair_trans = ("$apair_split[$k]","$apair_split[$k+$n_units+1]"); #save transition base units for comparision later "key transition"
-      #print DEBUG "A Base transition: $apair_trans[0] $apair_trans[1]\n";
       $apair_split[$k] = "XX"; #replace transition with XXs (so we can check if equal with second transition state)
       $apair_split[$k+$n_units+1] = "XX";
+      $apair_copy =~ s/$apair_split[$k]/XX/;
+      $apair_copy =~ s/$apair_split[$k+$n_units+1]/XX/;
     }
   }
 
   for ( $j=$i+1; $j<@barkeys; $j++ ) {
-     $bpair = $barkeys[$j]; #pick another barrier
-     #print DEBUG "BPAIR: $bpair\n";
+     $bpair = $barkeys[$j]; #pick next barrier
      @bpair_split = split  /-|_/, $bpair;
-     #$apair_tmp = $apair;
-     #$bpair_tmp = $bpair;
+     $bpair_copy = $bpair;
      $both_trans = "$apair to $bpair";
-     #print DEBUG "$both_trans\n";
-
-     $if_equiv = 0; #if_equiv = 1 if two transition states are equivalent
      $equal_base_count = 0; #tracks the number of base units that are equal/equiv
-     #print DEBUG "0. Checking $apair and $bpair for equivalent transition... \n";
+
      if ( $apair ne $bpair ) {#don't compare the same transitions
-       if ( $bpair =~ m/$apair_trans[0]/ && $bpair =~ m/$apair_trans[1]/){ # check if second pair has same "key transition"
-            #print DEBUG "1. Checking $apair and $bpair for equivalent transition (standard). \n";
+       #if second pair has the same base transition
+       if ( $bpair =~ m/$apair_trans[0]/ && $bpair =~ m/$apair_trans[1]/){
             for ($k=0; $k<$n_units; $k++) { #go through each base unit to find base transition
               if ($bpair_split[$k] ne $bpair_split[$k+$n_units+1] ){ #compare base units of each states. "+1" term skips over 'AND'
                 @bpair_trans = ("$bpair_split[$k]","$bpair_split[$k+$n_units+1]"); #save transition base units for comparision later "key transition"
-                #print DEBUG "B Base transition: $bpair_trans[0] $bpair_trans[1]\n";
                 $bpair_split[$k] = "XX"; #replace transition with XXs (so we can check if equal with second transition state)
                 $bpair_split[$k+$n_units+1] = "XX";
+                $bpair_copy =~ s/$bpair_split[$k]/XX/;
+                $bpair_copy =~ s/$bpair_split[$k+$n_units+1]/XX/;
               }
             }
-
-           for ($m=0; $m<$n_units; $m++){ #only one base transitions => the remaining bases are unchanged => only check 4 bases
+            #check for a transition with Sb = Wb state (i.e. OF-No-Sb-Wo to OF-Nb-Sb-Wo = OF-No-So-Wb to OF-Nb-So-Wb)
+            if ($Sb_Wb_tied == 2 || $Sb_Wb_tied == 3 ){
+                foreach $tlist (@Sb_Wb_tied_list){
+                  if ( ( (grep /$$tlist[0]/, $apair) && (grep /$$tlist[1]/, $bpair) ) || ( (grep /$$tlist[1]/, $apair) && (grep /$$tlist[0]/, $bpair) ) ){
+                    $equal_base_count = 2; #s and w terms are equiv.
+                    print DEBUG "Transition Equivalence for Sb/Wb: $apair and $bpair \n";
+                  }
+                }
+            }
+            #check remaining bases
+            for ($m=0; $m<$n_units; $m++){
                if ($apair_split[$m] eq $bpair_split[$m] ){ #check for equal bases
                    $equal_base_count++;
                 } else { #check for equivalent bases
                        for ($n=0; $n<@tied_bases; $n++) {
                             if ( (grep /$apair_split[$m]/, @{$tied_bases[$n]}) && (grep /$bpair_split[$m]/, @{$tied_bases[$n]}) ){
                                 $equal_base_count++;
-                                if ($equal_base_count == 4){
-                                  #print DEBUG "MATCH! Equivalent transition (standard) $apair $bpair\n";
-                                }
                             }
                        }
                } # end of else { #check for equivalent bases
            }
-
-           if ($n_to_sw_tied == 1 && $same_dg_sw == 1 ) {
-             #print DEBUG "...checking for Nb to Sb or Wb equivalent transition\n";
-             #assumes a_pair and b_pair have the same key transition.
-             #print DEBUG "$apair and $bpair\n";
-             my $match = 0;
-
-
-             if ( ($apair_split[0] eq $apair_split[0+$n_units+1]) && ($apair_split[0] eq $bpair_split[0]) && ($apair_split[0] eq $bpair_split[0+$n_units+1]) ){ # check if first base matches (OF or IF)
-
-               #print DEBUG "apair: $apair bpair: $bpair\n";
-               my $apair_key_trans = "$apair_trans[0] $apair_trans[1]";
-               my $bpair_key_trans = "$bpair_trans[0] $bpair_trans[1]";
-               #print DEBUG "   key transitions (apair bpair): $apair_key_trans $bpair_key_trans\n";
-
-
-               foreach my $tlist2 (@tied_nb){ #check if n bound transition
-                 if ($apair_key_trans eq $tlist2){ #check apair for n bound transition
-                   foreach my $tlist3 (@tied_nb){
-                     if ($bpair_key_trans eq $tlist3){ #check bpair for n bound transition
-                       $match = 1;
-                     }
-                   }
-                 }
-
-               }
-
-               if ( $match ==1){ #check if in tied_for_sw list (So Wb, Si Wb, Sb Wo, Sb Wi)
-                    # check if last two terms are in extra tied states group
-                    $a_sw_pair = "$apair_split[2] $apair_split[3]";
-                    $b_sw_pair = "$bpair_split[2] $bpair_split[3]";
-                    #print DEBUG "$apair $apair_split[2] $apair_split[3] and $bpair $bpair_split[2] $bpair_split[3]\n";
-                    foreach my $element (@tied_for_SW_bind) {
-                      if ( $element eq $a_sw_pair ){
-                        foreach my $element2 (@tied_for_SW_bind){
-                          if ( $element2 eq $b_sw_pair ){
-                            $equal_base_count = 4;# set equal base count to 4
-                            print DEBUG "MATCH! Equivalant transition (Nb to Sb or Wb) $apair and $bpair  \n";
-
-                          }
-                         }
-                       }
-                      }
-                 }
-
-               }
-             }
-
-           if ($proof==1 && $same_dg_sw == 1) { # S and W bound conformational transitions are equivalent
-           #print DEBUG "3. checking for Sb or Wb equivalent conformational transition\n";
-           if ($apair_split[0] eq "XX" && $bpair_split[0] eq "XX"){
-             if ($apair_split[0] eq $apair_split[0+$n_units+1]  && $apair_split[0] eq $bpair_split[0]  && $apair_split[0] eq $bpair_split[0+$n_units+1] ){
-               if ($apair_split[1] eq $apair_split[1+$n_units+1]  && $apair_split[1] eq $bpair_split[1] && $apair_split[1] eq $bpair_split[1+$n_units+1] ){
-                 $a_sw_pair = "$apair_split[2] $apair_split[3]";
-                 $b_sw_pair = "$bpair_split[2] $bpair_split[3]";
-                 #print DEBUG "a_sw_pair $a_sw_pair b_sw_pair $b_sw_pair \n";
-                 #check if a_sw_pair and b_sw_pair are in tied_for_SW_bind list
-
-                 #print DEBUG "$a_sw_pair and $b_sw_pair\n";
-
-                 foreach  $element (@tied_for_SW_bind) {
-                   #print DEBUG "i: $element\n";
-                   if ( $element eq $a_sw_pair ){
-                     #print DEBUG "  A: $a_sw_pair is in tied SW list \n";
-                     foreach my $element2 (@tied_for_SW_bind){
-                       #print DEBUG "    j: $element2\n";
-                       if ( $element2 eq $b_sw_pair ){
-                         #print DEBUG "      B: $b_sw_pair is in tied SW list \n";
-                         #print DEBUG "         $apair and $bpair <- SW confomrational equivalence \n";
-                         $equal_base_count = 4;
-                         #print DEBUG "MATCH! Equivalent transition (S/W Confomrational) $apair to $bpair\n";
-                       }
-                     }
-                   }
-                 }
-               }
-             }
+      } else { #transitions do not have same "key transition"
+          if ($Sb_Wb_tied == 1 || $Sb_Wb_tied == 3 ){ #check for "proof-reading equivalent" (i.e. So->Sb = Wo->Wb)
+            #print DEBUG "Checking $apair and $bpair\n";
+            foreach $tlist (@tied_for_bind){
+              $aname = $$tlist[0]; $bname = $$tlist[1]; $cname = $$tlist[2]; $dname = $$tlist[3];
+              if ( $apair =~ m/$aname/ && $apair =~ m/$bname/  && $bpair =~ m/$cname/ && $bpair =~ m/$dname/ ) {
+                $equal_base_count = 2;
+                #print DEBUG "!!! Transition Equivalence for S (un)binding and W (un)binding: $apair and $bpair \n";
+              }
+              elsif ($apair =~ m/$cname/ && $apair =~ m/$dname/  && $bpair =~ m/$aname/ && $bpair =~ m/$bname/ ){
+                $equal_base_count = 2;
+                #print DEBUG "!!! Transition Equivalence for S (un)binding and W (un)binding: $apair and $bpair \n";
+              }
             }
-           }
-
-      }
-
-      else {
-        #print DEBUG "3.1 $apair and $bpair do not have same key transition!\n";
-        if ($proof == 1) { #if psuedo equivalent, will set apair and bpair to XF NX XX XX
-        $psuedo_equiv = 0;
-        #print DEBUG "4. checking for proofreading equivalent transition\n";
-        for ($k=0; $k<$n_units; $k++) { #go through each base unit to find base transition
-          if ($bpair_split[$k] ne $bpair_split[$k+$n_units+1] ){ #compare base units of each states. "+1" term skips over 'AND'
-            @bpair_trans = ("$bpair_split[$k]","$bpair_split[$k+$n_units+1]"); #save transition base units for comparision later "key transition"
-            #print DEBUG "B Base transition: $bpair_trans[0] $bpair_trans[1]\n";
-            $bpair_split[$k] = "XX"; #replace transition with XXs (so we can check if equal with second transition state)
-            $bpair_split[$k+$n_units+1] = "XX";
-          }
-        }
-
-        foreach $tlist (@tied_for_bind){
-          #print DEBUG "tlist $$tlist[0] $$tlist[1] \n";
-
-
-          if ( ( $$tlist[0] =~ m/$apair_trans[0]/ && $$tlist[0] =~ m/$apair_trans[1]/) && ( $$tlist[1] =~ m/$bpair_trans[0]/ && $$tlist[1] =~ m/$bpair_trans[1]/) )  {
-            #print DEBUG "4.1 psuedo-equivalent base unit transition! $apair_trans[0] $apair_trans[1] is in $$tlist[0] AND $bpair_trans[0] $bpair_trans[1] is in $$tlist[1]\n";
-            #need to set apair and bpair split last 2 terms to XX
-            $psuedo_equiv = 1;
-            $equal_base_count = 2;
-          } elsif ( ( $$tlist[1] =~ m/$apair_trans[0]/ && $$tlist[1] =~ m/$apair_trans[1]/) && ( $$tlist[0] =~ m/$bpair_trans[0]/ && $$tlist[0] =~ m/$bpair_trans[1]/) ) {
-            #print DEBUG "4.2 psuedo-equivalent base unit transition! $apair_trans[0] $apair_trans[1] is in $$tlist[1] AND $bpair_trans[0] $bpair_trans[1] is in $$tlist[0]\n";
-            $psuedo_equiv = 1;
-            $equal_base_count = 2;
-          }
-        }
-        if ($psuedo_equiv == 1){
-
-          for ($m=0; $m<($n_units-2); $m++){ #last two are equivalent (so skip, ASSUMES psuedo equiv are at the end!)
+            for ($m=0; $m<$n_units-2; $m++){ #check remaining bases (not S and W)
+              #print DEBUG "base a: $apair_split[$m] base b: $bpair_split[$m]\n";
               if ($apair_split[$m] eq $bpair_split[$m] ){ #check for equal bases
-                  $equal_base_count++;
-                  if ($equal_base_count == 4){
-                    #print DEBUG "MATCH! Equivalent transition (proof-reading) $apair $bpair\n";
+              #print DEBUG "match! base count +1\n";
+              $equal_base_count++;
+            } else { #check for equivalent bases (not S and W)
+                  for ($n=0; $n<@tied_bases-2; $n++) {
+                       if ( (grep /$apair_split[$m]/, @{$tied_bases[$n]}) && (grep /$bpair_split[$m]/, @{$tied_bases[$n]}) ){
+                           $equal_base_count++;
+                       }
                   }
-               } else { #check for equivalent bases
-                      for ($n=0; $n<@tied_bases; $n++) {
-                           if ( (grep /$apair_split[$m]/, @{$tied_bases[$n]}) && (grep /$bpair_split[$m]/, @{$tied_bases[$n]}) ){
-                               $equal_base_count++;
-                               if ($equal_base_count == 4){
-                                 #print DEBUG "MATCH! Equivalent transition (proof-reading) $apair $bpair\n";
-                               }
-                           }
-                      }
-              } # end of else { #check for equivalent bases
+                } # end of else { #check for equivalent bases
+            }
           }
-        } # end of if ($psuedo_equiv==1)
-      #print DEBUG "equal base count = $equal_base_count\n";
-      } # end of if ($proofreading)
-     } # end of else
+    }
+  } # end of if ( $apair ne $bpair )
 
-     # note: putting if ($n_to_sw_tied == 1 && $same_dg_sw == 1 ) routine here will change functionality!
-
-
-     } # end of if ( $apair ne $bpair )
-
-     if ($equal_base_count eq $n_units){ #each base unit must match
-         $if_equiv = 1;
-     }
-
-     if ( $if_equiv==1 ) {
-        $etcount ++ ;
-        print ".. Equivalent transition $etcount: $both_trans\n";
-        #print DEBUG ".. Equivalent transition $etcount: $both_trans\n";
-        push @equiv_transns, [ $apair, $bpair ];
-
-        push @tmp_transition_state_list, $apair;
-        push @tmp_transition_state_list, $bpair;
-        $equiv_tansns_name = "$apair $bpair";
-        $hash_equiv_transns{"$equiv_tansns_name"} = "1";
-
-     }
-     #print DEBUG "\n";
+  if ( $equal_base_count eq $n_units) { #each base unit must match
+    $etcount ++ ;
+    print ".. Equivalent transition $etcount: $both_trans\n";
+    print DEBUG ".. Equivalent transition $etcount: $both_trans\n";
+    push @equiv_transns, [ $apair, $bpair ];
+    push @tmp_transition_state_list, $apair;
+    push @tmp_transition_state_list, $bpair;
+    $equiv_tansns_name = "$apair $bpair";
+    $hash_equiv_transns{"$equiv_tansns_name"} = "1";
+    }
   } # end of j loop
-  #*-print DEBUG "\n";
 } # end of i loop
 
-#print DEBUG "ebars\n".Dumper(%ebars);
+
 my %tmp_hash_of_transition_states = map { $_, 1 } @tmp_transition_state_list;
 @transition_state_list = keys %tmp_hash_of_transition_states;
-#print DEBUG "transition state list\n".Dumper(@transition_state_list);
 
 $n_transition_states = @transition_state_list;
-#print DEBUG "n transition states $n_transition_states \n";
 
 my @transition_adjacent_matrix = ();
 push @transition_adjacent_matrix, [(0)x$n_transition_states] for (1..$n_transition_states);
 
 my @transition_energy_matrix = ();
 push @transition_energy_matrix, [(0)x$n_transition_states] for (1..$n_transition_states);
-
-#print DEBUG "empty transition adjacent matrix:\n".Dumper(@transition_adjacent_matrix);
 
 for ( $i=0; $i<@transition_state_list; $i++ ) {
     for ($j=$i+1; $j<@transition_state_list; $j++){
@@ -843,7 +737,6 @@ for ( $i=0; $i<@transition_state_list; $i++ ) {
         $key1 = "$transition_state_list[$i] $transition_state_list[$j]";
         $key2 = "$transition_state_list[$j] $transition_state_list[$i]";
         if ( (exists($hash_equiv_transns{$key1})) or (exists($hash_equiv_transns{$key2})) ) {
-            #print DEBUG "at i,j = $i,$j equivalent transition found! $key1 \n";
             $transition_adjacent_matrix[$i][$j] = 1;
             $transition_adjacent_matrix[$j][$i] = 1;
         }
@@ -1879,10 +1772,13 @@ sub initial_model {
   my %connected_states_deref = %{$connected_states_ref2};
   my %connected_transitions_deref = %{$connected_transitions_ref2};
 
-  print "intializing state energies model with ref nodes E = 0 ...\n";
-  foreach $reference_state ( keys %connected_states_deref) {
-     adjust_tied_energies2( $reference_state, $connected_states_ref2, 0.0);
-  }
+  print_energies($connected_states_ref2, "States");
+  print_energies($connected_transitions_ref2, "Transitions");
+
+  #print "intializing state energies model with ref nodes E = 0 ...\n";
+  #foreach $reference_state ( keys %connected_states_deref) {
+     #adjust_tied_energies2( $reference_state, $connected_states_ref2, 0.0);
+  #}
 
   print "initializing transition energies model with energies = ebump ($ebump) or ebump + ebarslow ($ebump+$ebarslow) 100 (if a slow transition)\n";
   foreach $key (keys %connected_transitions_deref){
@@ -1992,8 +1888,7 @@ sub load_config_settings {
     autobot => "0",
     analysis_type => "vary_dmu_N",
     dg_sw => 2,
-    same_dg_sw => 0,
-    n_to_sw_tied => 0,
+    Sb_Wb_tied => 0,
   );
   my @required_parameters = ( # Required paramters to be in config file
     "proof", "na_first", # Simulation Parameters
@@ -2004,8 +1899,7 @@ sub load_config_settings {
     "autobot", #turn on/off automation pipeline
     "analysis_type", #which type of analysis (vary dmu n,s, or w)
     "dg_sw", # set dg_sw (different binding energy of W to S)
-    "same_dg_sw", # same energies for OF-Sb -> IF-Sb as OF-Wb -> IF-Wb
-    "n_to_sw_tied", # used to tie Sb->Nb-Sb with Wb->Nb-Sb
+    "Sb_Wb_tied", # controls how "tied together Sb and Wb are"
   );
   my %config;
   Config::Simple->import_from( $config_file, \%config);
@@ -2104,7 +1998,6 @@ sub print_energies {
   }
   print "\n";
 }
-
 
 # Caculates and prints script runtime in seconds
 my $end_time = time();

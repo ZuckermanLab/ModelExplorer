@@ -3,12 +3,12 @@
 #format 'keyname value' with space as delimiter.
 #no comments on same line as key/value pair
 
-nsteps 1e4
+nsteps 1e1
 alpha 0
 seed 135753
-directory SW_TESTING1_dgsw_05_v2
+directory testing3
 autobot 0
 dmu_W 0
 na_first 0
-dg_sw 0.5
-
+dg_sw 0
+Sb_Wb_tied 3
