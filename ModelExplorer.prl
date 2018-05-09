@@ -8,6 +8,7 @@ use Config::Simple;
 use List::Util qw(first);
 use File::Copy qw(copy);
 use Cwd qw(chdir);
+use Storable qw(dclone);
 
 #use strict; #errors out
 
@@ -165,6 +166,7 @@ if ( $proof==1 ) {
    push @tied_bases, [ "Wo", "Wi", 0.0 ]; # chemical potential info (is dummy entry)
    #push @tied_bases, [ "Wo", "Wi", $dmu_W ]; # chemical potential info
    # Info for fixed relative affinities between S and W
+   # Sb states are tied to Wb states to maintain the dg_sw difference between them
    @tied_bases_ne = ();
    push @tied_bases_ne, [ "Sb-Wi", "Si-Wb", $dg_SW ]; #Sb-Wi tied to Si-Wb
    push @tied_bases_ne, [ "Sb-Wo", "So-Wb", $dg_SW ]; #Sb-Wo tied to So-Wb
@@ -403,30 +405,31 @@ for ( $i=0; $i<$nstates; $i++ ) {
       $jname = $snames[$j]; $bname = $jname;
       $etmp = 0;
       $nchange = 0; # counter for number of changes to make identical.
-      #print "Checking states $i = $iname and $j = $jname\n";
+      #print DEBUG "Checking states $i = $iname and $j = $jname\n";
       foreach $list ( @tied_bases ) {
          $uref = $$list[0]; $uto = $$list[1]; $delmu = $$list[2];
-         #print ".. tied: from $uref to $uto delta_mu = $delmu\n";
+         #print DEBUG ".. tied: from $uref to $uto delta_mu = $delmu\n";
          if ( $iname =~ /$uref/ && $jname =~ /$uto/ ) {
             $etmp += $delmu;
-            #print ".... Match!  etmp now = $etmp";
+            #print DEBUG ".... Match!  etmp now = $etmp";
             $iname =~ s/$uref/XX/;
             $jname =~ s/$uto/XX/;
-            #print " .. new names: iname=$iname  jname=$jname\n";
+            #print DEBUG " .. new names: iname=$iname  jname=$jname\n";
             $nchange ++ ;
          }
          elsif ( $jname =~ /$uref/ && $iname =~ /$uto/ ) {
             $etmp -= $delmu;
-            #print ".... Match!  etmp now = $etmp";
+            #print DEBUG ".... Match!  etmp now = $etmp";
             $jname =~ s/$uref/XX/;
             $iname =~ s/$uto/XX/;
-            #print " .. new names: iname=$iname  jname=$jname\n";
+            #print DEBUG " .. new names: iname=$iname  jname=$jname\n";
             $nchange ++ ;
          }
       } # end of loop for each pair of tied bases
       # if names match...
       if ( $iname eq $jname ) {
          print "TRUE MATCH: $aname -> $bname with energy change $etmp   nchange=$nchange\n";
+         #print DEBUG "TRUE MATCH: $aname -> $bname with energy change $etmp   nchange=$nchange\n";
          push @tied_states, [ $aname, $bname ];
          push @tied_energies, [ 0.0,   $etmp ];
          $state_adjacent_matrix[$i][$j] = 1; #if states are connected, A_ij = A_ji = 1
@@ -492,7 +495,7 @@ for ( $i=0; $i<$nstates; $i++ ) {
          #print DEBUG ".. tied: from $uref to $uto delta_mu = $delmu\n";
          if ( $iname =~ /$uref/ && $jname =~ /$uto/ ) {
             $etmp += $delmu;
-            #print DEBUG ".... Match!  etmp now = $etmp";
+            #print DEBUG ".... Match!  etmp now = $etmp\n";
             $iname =~ s/$uref/XX/;
             $jname =~ s/$uto/XX/;
             #print DEBUG " .. new names: iname=$iname  jname=$jname\n";
@@ -500,7 +503,7 @@ for ( $i=0; $i<$nstates; $i++ ) {
          }
          elsif ( $jname =~ /$uref/ && $iname =~ /$uto/ ) {
             $etmp -= $delmu;
-            #print DEBUG ".... Match!  etmp now = $etmp";
+            #print DEBUG ".... Match!  etmp now = $etmp\n";
             $jname =~ s/$uref/XX/;
             $iname =~ s/$uto/XX/;
             #print DEBUG " .. new names: iname=$iname  jname=$jname\n";
@@ -510,21 +513,21 @@ for ( $i=0; $i<$nstates; $i++ ) {
       # goes through remaining connections (i.e. Ni/No)
       foreach $list ( @tied_bases ) {
          $uref = $$list[0]; $uto = $$list[1]; $delmu = $$list[2];
-         #print ".. tied: from $uref to $uto delta_mu = $delmu\n";
+         #print DEBUG ".. tied: from $uref to $uto delta_mu = $delmu\n";
          if ( $iname =~ /$uref/ && $jname =~ /$uto/ ) {
             $etmp += $delmu;
-            #print ".... Match!  etmp now = $etmp";
+            #print DEBUG ".... Match!  etmp now = $etmp";
             $iname =~ s/$uref/XX/;
             $jname =~ s/$uto/XX/;
-            #print " .. new names: iname=$iname  jname=$jname\n";
+            #print DEBUG " .. new names: iname=$iname  jname=$jname\n";
             $nchange ++ ;
          }
          elsif ( $jname =~ /$uref/ && $iname =~ /$uto/ ) {
             $etmp -= $delmu;
-            #print ".... Match!  etmp now = $etmp";
+            #print DEBUG ".... Match!  etmp now = $etmp";
             $jname =~ s/$uref/XX/;
             $iname =~ s/$uto/XX/;
-            #print " .. new names: iname=$iname  jname=$jname\n";
+            #print DEBUG " .. new names: iname=$iname  jname=$jname\n";
             $nchange ++ ;
          }
       }
@@ -657,7 +660,7 @@ for ( $i=0; $i<@barkeys; $i++ ) {
                 foreach $tlist (@Sb_Wb_tied_list){
                   if ( ( (grep /$$tlist[0]/, $apair) && (grep /$$tlist[1]/, $bpair) ) || ( (grep /$$tlist[1]/, $apair) && (grep /$$tlist[0]/, $bpair) ) ){
                     $equal_base_count = 2; #s and w terms are equiv.
-                    print DEBUG "Transition Equivalence for Sb/Wb: $apair and $bpair \n";
+                    #print DEBUG "Transition Equivalence for Sb/Wb: $apair and $bpair \n";
                   }
                 }
             }
@@ -707,7 +710,7 @@ for ( $i=0; $i<@barkeys; $i++ ) {
   if ( $equal_base_count eq $n_units) { #each base unit must match
     $etcount ++ ;
     print ".. Equivalent transition $etcount: $both_trans\n";
-    print DEBUG ".. Equivalent transition $etcount: $both_trans\n";
+    #print DEBUG ".. Equivalent transition $etcount: $both_trans\n";
     push @equiv_transns, [ $apair, $bpair ];
     push @tmp_transition_state_list, $apair;
     push @tmp_transition_state_list, $bpair;
@@ -763,6 +766,7 @@ my ($connected_states, $connected_transitions) = import_from_python();
 print "connected states\n".Dumper($connected_states);
 print "connected transitions\n".Dumper($connected_transitions);
 
+print DEBUG "intializing model...\n";
 initial_model($connected_states, $connected_transitions);
 
 # Put the same info into more useful hashes
@@ -819,20 +823,24 @@ print MCFILE "\nMonte Carlo loop: n = $n\n\n";
 print "\nMonte Carlo loop: n = $n\n\n";
 print DEBUG "\nMonte Carlo loop: n = $n\n\n";
 
+$old_connected_states = dclone $connected_states;
+$old_connected_transitions = dclone $connected_transitions;
 
-unit_test_tied_list($connected_states, "states" );
-unit_test_tied_list($connected_transitions, "transitions");
-print_energies($connected_states, "states");
-print_energies($connected_transitions, "transitions");
+#unit_test_tied_list($connected_states, "states" );
+#unit_test_tied_list($old_connected_transitions, "transitions");
+#print_energies($old_connected_transitions, "old transitions");
+#print_energies($old_connected_states, "old states");
 
-$old_connected_states = $connected_states;
-$old_connected_transitions = $connected_transitions;
+#print DEBUG "energies = \n".Dumper(%energies);
+
 
 ## Trial move
 if ( $n>0 ) {
 
    # choose random state or transition-state energy to perturb
    if ( rand() < 0.5 ) { # trial move is perturbation to state energy
+      #print_energies($old_connected_states, "old states");
+      #print DEBUG "connected states old = \n".Dumper($old_connected_states);
       #print DEBUG "pre-trial state energies = \n".Dumper(%energies);
       $state_move = 1;  # 1 for changing state, 0 for changing barrier
       $state_ok = 0; # flag for whether chosen state is in fixed list and should be excluded
@@ -848,35 +856,52 @@ if ( $n>0 ) {
       $new_energy = $old_energy + $delta_e; # perturb energy
       $energies{$tmpstate} = $new_energy; # set state's energy to new energy
       print MCFILE "Perturb state $tmpstate by delta_e=$delta_e from $old_energy to $new_energy\n";
-      #print DEBUG "Perturb state $tmpstate by delta_e=$delta_e from $old_energy to $new_energy\n";
-      adjust_tied_energies2( $tmpstate, $connected_states, $new_energy);
+      print DEBUG "Perturb state $tmpstate by delta_e=$delta_e from $old_energy to $new_energy\n";
+      adjust_tied_energies2( $tmpstate, $connected_states, $delta_e); #use delta_e because some states in equivalent group have different energies, can't set them all to new energy
+      #print_energies($connected_states, "states");
+      #print_energies($old_connected_states, "old states");
+      #print DEBUG "connected states = \n".Dumper($connected_states);
+      #print DEBUG "connected states old = \n".Dumper($old_connected_states);
+      unit_test_tied_energy_difference($old_connected_states, $connected_states, "states" );
+      #print_energies($connected_states, "states");
+      #print_energies($old_connected_states, "old states");
    }
    else { # trial move is perturbation to transition-state (energy barrier) energy
       #print DEBUG "pre-trial barrier energies = \n".Dumper(%ebars);
+      #print_energies($old_connected_transitions, "old transitions");
       $state_move = 0;
       $nbars = keys %ebars;
       $nrand = floor(rand()*$nbars); # random element of transition states array
       $bartmp = $barkeys[$nrand]; # name of transition state to be perturbed
       print MCFILE "Perturb transition state $nrand = $bartmp  with  ebar = $ebars{$bartmp}\n";
-      #print DEBUG "Perturb transition state $nrand = $bartmp  with  ebar = $ebars{$bartmp}\n";
+      print DEBUG "Perturb transition state $nrand = $bartmp  with  ebar = $ebars{$bartmp}\n";
       $delta_e = 2.0*$demax*( rand() - 0.5 ); # amount by which energy of state to be perturbed
       $old_energy = $ebars{$bartmp};
       $new_energy = $old_energy + $delta_e;
-      print DEBUG "n =$n new_energy=$new_energy\n";
+      #print DEBUG "n =$n new_energy=$new_energy\n";
       if ( grep { $bartmp eq $_ } @slowpairs ) {
          print MCFILE "... CHANGING A SLOW TRANSN STATE\n";
          #print DEBUG "... CHANGING A SLOW TRANSN STATE\n";
-         if ( $new_energy < $ebarslow ) { $new_energy = $ebarslow; };
-      }
-      else {
-         if ( $new_energy < 0.0 ) { $new_energy = 0.0; } # constrained to be non-negative
+         if ( $new_energy < $ebarslow ) {
+           $new_energy = $ebarslow;
+           $delta_e = $ebarslow-$old_energy;
+         } #change delta e such that old energy + delta = ebar slow
+       } elsif ( $new_energy < 0.0 ) {
+            $new_energy = 0.0;
+            $delta_e = -1*$old_energy;
+      } #change delta e such that old energy + delta = 0
          # equivalent to setting minimum rate to be kzero
-      }
-      $ebars{$bartmp} = $new_energy;
+
+      $ebars{$bartmp} = $old_energy + $delta_e;
       print MCFILE "Perturb transition state $bartmp by delta_e=$delta_e from $old_energy to (non-negative) $new_energy\n";
-      #print DEBUG "Perturb transition state $bartmp by delta_e=$delta_e from $old_energy to (non-negative) $new_energy\n";
+      print DEBUG "Perturb transition state $bartmp by delta_e=$delta_e from $old_energy to (non-negative) $new_energy\n";
       #adjust_tied_barriers2( $bartmp, $new_energy );
-      adjust_tied_barriers2( $bartmp, $connected_transitions, $new_energy);#fix this to use new/old energy!!!
+      adjust_tied_barriers2( $bartmp, $connected_transitions, $delta_e);
+      #print_energies($connected_transitions, "transitions");
+      #print_energies($old_connected_transitions, "old transitions");
+      unit_test_tied_energy_difference($old_connected_transitions,$connected_transitions, "transitions");
+      #print_energies($connected_transitions, "transitions");
+      #print_energies($old_connected_transitions, "old transitions");
    }
 }
 
@@ -911,6 +936,9 @@ foreach $sa (@states) {
          $emax = 0.5*(  $energy_a + $energy_b + abs( $energy_a - $energy_b ));
          $ebar = $emax + $ebars{$pairname}; # transition state energy
          $rateij = exp( $ddmu ) * $kzero * exp( -( $ebar - $energy_a ) ); # simple Arrhenius rate * ligand conc
+         #print DEBUG "a_name: $a_name, energy_a: $energy_a, b_name: $b_name, energy_b: $energy_b \n";
+         #print DEBUG "ebar = emax + ebars{pairname} = $emax + $ebars{$pairname} = $ebar\n";
+         #print DEBUG "rateij = exp( ddmu ) * kzero * exp( -( ebar - energy_a ) ) = exp( $ddmu ) * $kzero * exp( -( $ebar - $energy_a ) ) = $rateij\n\n;"
          #$rateij = $kzero * exp( -( $ebar - $energy_a ) ); # simple Arrhenius rate * ligand conc
       }
       else { # distance not 1, so rate is zero
@@ -972,6 +1000,7 @@ open(KFILE, "> $kfile");
 for ( $i=0; $i<@states; $i++ ) {
    for ( $j=0; $j<@states; $j++ ) {
       printf KFILE "%8.4e  ", $rates[$i][$j];
+      #printf DEBUG "%8.4e  ", $rates[$i][$j];
    }
    print KFILE "\n\n";
 }
@@ -996,6 +1025,7 @@ while (<TMP>) {
    }
 }
 print "steady state values: @alt_pss\n\n";
+#print DEBUG "steady state values: @alt_pss\n\n";
 close(TMP);
 
 # assign steady-state probabilities to all states
@@ -1078,12 +1108,12 @@ if ( $n>0 ) { # check if move accepted
       $mc_change = 0;
       $accept_ratio = $n_accept/$n;
       print MCFILE "Move rejected!!!    Acceptance ratio = $accept_ratio\n";
-      print DEBUG "Move rejected!!!    Acceptance ratio = $accept_ratio\n";
+      #print DEBUG "Move rejected!!!    Acceptance ratio = $accept_ratio\n";
       if ( $state_move == 1 ) { # state energy was changed - change back
          $energies{$tmpstate} = $old_energy;
          print MCFILE "State rejection: Change back state $tmpstate to $energies{$tmpstate}\n";
          print DEBUG "State rejection: Change back state $tmpstate to $energies{$tmpstate}\n";
-         adjust_tied_energies2( $tmpstate, $connected_states, $old_energy);
+         adjust_tied_energies2( $tmpstate, $connected_states, -1*$delta_e);#note: negative change in energy used to reset
          #print DEBUG "state energies reset = \n".Dumper(%energies);
          unit_test_check_restored_energies($old_connected_states, $connected_states, "states");
       }
@@ -1091,7 +1121,7 @@ if ( $n>0 ) { # check if move accepted
          $ebars{$bartmp} = $old_energy;
          print MCFILE "Barrier rejection: Change back transition state $bartmp to  $ebars{$bartmp}\n";
          print DEBUG "Barrier rejection: Change back transition state $bartmp to  $ebars{$bartmp}\n";
-         adjust_tied_barriers2( $bartmp, $connected_transitions, $old_energy); #note: negative change in energy used to reset
+         adjust_tied_barriers2( $bartmp, $connected_transitions, -1*$delta_e); #note: negative change in energy used to reset
          #print DEBUG "barrier energies reset = \n".Dumper(%ebars);
          unit_test_check_restored_energies($old_connected_transitions, $connected_transitions, "transitions");
       }
@@ -1734,11 +1764,13 @@ sub import_from_python {
     open my $fh2, "<", "$state_filename" or die "Could not open file '$state_filename' ";
     my $state_consistency_flag = <$fh2>;
     print "state consistency $state_consistency_flag\n";
+    print DEBUG "state consistency $state_consistency_flag\n";
     close $fh2;
 
     open $fh2, "<", "$transition_filename" or die "Could not open file '$transition_filename' ";
     my $transition_consistency_flag = <$fh2>;
     print "transition consistency $transition_consistency_flag\n";
+    print DEBUG "transition consistency $transition_consistency_flag\n";
     close $fh2;
 
     my $json_state;
@@ -1775,10 +1807,12 @@ sub initial_model {
   print_energies($connected_states_ref2, "States");
   print_energies($connected_transitions_ref2, "Transitions");
 
-  #print "intializing state energies model with ref nodes E = 0 ...\n";
-  #foreach $reference_state ( keys %connected_states_deref) {
-     #adjust_tied_energies2( $reference_state, $connected_states_ref2, 0.0);
-  #}
+  print "intializing state energies model ...\n";
+  foreach $key (keys %connected_states_deref){
+    foreach $key_in_key (keys %{$connected_states_deref{$key}}){
+       $energies{$key_in_key} = $connected_states_deref{$key}{$key_in_key};
+    }
+  }
 
   print "initializing transition energies model with energies = ebump ($ebump) or ebump + ebarslow ($ebump+$ebarslow) 100 (if a slow transition)\n";
   foreach $key (keys %connected_transitions_deref){
@@ -1819,8 +1853,8 @@ sub adjust_tied_barriers2 { # takes in perturbed_state, connected_states_ref, an
       if ($key_in_key eq $perturbed_barrier){
           #print "found perturbed_state! = $key_in_key\n";
           foreach $key_in_key (keys %{$connected_barriers_deref{$key}}){
-            $connected_barriers_deref{$key}{$key_in_key} = $barrier_energy_value;
-            $ebars{$key_in_key} = $barrier_energy_value;
+            $connected_barriers_deref{$key}{$key_in_key} = $connected_barriers_deref{$key}{$key_in_key} + $barrier_energy_value;
+            $ebars{$key_in_key} = $connected_barriers_deref{$key}{$key_in_key} + $barrier_energy_value;
             #print "state $key_in_key energy set from $previous_energy to $new_energy\n";
           }
       }
@@ -1843,8 +1877,8 @@ sub adjust_tied_energies2 { # takes in perturbed_state, connected_states_ref, an
           foreach $key_in_key (keys %{$connected_states_deref{$key}}){
             #$previous_energy = $connected_states_deref{$key}{$key_in_key};
             #$new_energy = $previous_energy + $energy_pertubation;
-            $connected_states_deref{$key}{$key_in_key} = $state_energy_value;
-            $energies{$key_in_key} = $state_energy_value;
+            $connected_states_deref{$key}{$key_in_key} = $connected_states_deref{$key}{$key_in_key} + $state_energy_value;
+            $energies{$key_in_key} = $connected_states_deref{$key}{$key_in_key} + $state_energy_value;
             #print "state $key_in_key energy set from $previous_energy to $new_energy\n";
           }
       }
@@ -1911,6 +1945,7 @@ sub load_config_settings {
   return %settings;
 }
 
+#not used because some equivalent lists have members with different values
 #inputs: list of equivalent states and energies
 #outputs: boolean flag
 #check if tied states have same energies and outputs true if they do.
@@ -1944,6 +1979,7 @@ sub unit_test_tied_list{
   if ($test_fail_flag == 1){
     print "Failed unit test. Energies in $list_label connected list are NOT equivalent!\n";
     print DEBUG "Failed unit test. Energies in $list_label connected list are NOT equivalent!\n";
+    exit;
   } else {
     print "Passed unit test. Energies in $list_label connected list are equivalent!\n";
     print DEBUG "Passed unit test. Energies in $list_label connected list are equivalent!\n";
@@ -1965,7 +2001,10 @@ sub unit_test_check_restored_energies {
   foreach $key (keys %dictionary1_deref){
      #print DEBUG "key = $key\n";
      foreach $key_in_key (keys %{$dictionary1_deref{$key}}){
-         if ($dictionary1_deref{$key}{$key_in_key} != $dictionary2_deref{$key}{$key_in_key} ) {
+         #$value1 = $dictionary1_deref{$key}{$key_in_key};
+         #$value2 = $dictionary2_deref{$key}{$key_in_key};
+         print DEBUG "key = $key, key_in_key = $key_in_key, $dictionary1_deref{$key}{$key_in_key} vs $dictionary2_deref{$key}{$key_in_key}\n";
+         if ( $dictionary1_deref{$key}{$key_in_key} ne $dictionary2_deref{$key}{$key_in_key} ) {
            $test_fail_flag = 1;
            print DEBUG "TEST FAILED! $test_label\n";
            print DEBUG "key = $key, key_in_key = $key_in_key\n";
@@ -1976,6 +2015,7 @@ sub unit_test_check_restored_energies {
   if ($test_fail_flag == 1){
     print "Failed unit test. Energies are NOT restored. $test_label\n";
     print DEBUG "Failed unit test. Energies are NOT restored. $test_label \n";
+    exit;
   } else {
     print "Passed unit test. Energies are restored. $test_label\n";
     print DEBUG "Passed unit test. Energies are restored. $test_label\n";
@@ -1999,6 +2039,41 @@ sub print_energies {
   print "\n";
 }
 
+# This tests that tied energies have the same difference after a trial move
+# (i.e. tied energy groupings remain with fixed landscape)
+sub unit_test_tied_energy_difference {
+  my $dictionarya_ref = $_[0];
+  my $dictionaryb_ref = $_[1];
+  my $test_label = $_[2];
+  my $tied_energy_difference = 0;
+  my %dictionarya_deref = %{$dictionarya_ref};
+  my %dictionaryb_deref = %{$dictionaryb_ref};
+  my $test_fail_flag = 0;
+
+  print DEBUG "Testing tied $test_label for same energy difference...\n";
+
+  foreach $key (keys %dictionaryb_deref){
+     $tied_energy_difference = $dictionaryb_deref{$key}{$key} - $dictionarya_deref{$key}{$key}; #could also use $delta_e
+     print DEBUG "key = $key, E before = $dictionaryb_deref{$key}{$key}, E after = $dictionarya_deref{$key}{$key}, delta E = $tied_energy_difference\n";
+     foreach $key_in_key (keys %{$dictionaryb_deref{$key}}){
+         if (($dictionaryb_deref{$key}{$key_in_key} - $dictionarya_deref{$key}{$key_in_key}) != $tied_energy_difference) {
+           $test_fail_flag = 1;
+           print DEBUG "TEST FAILED! $test_label\n";
+           print DEBUG "key = $key, key_in_key = $key_in_key\n";
+           print DEBUG "(E after) $dictionaryb_deref{$key}{$key_in_key} - (E before) $dictionarya_deref{$key}{$key_in_key} != $tied_energy_difference \n";
+         }
+     }
+   }
+     if ($test_fail_flag == 1){
+       print "Failed unit test. Energy differences are NOT equal. $test_label\n";
+       print DEBUG  "Failed unit test. Energy differences are NOT equal. $test_label\n";
+       exit;
+     } else {
+       print  "Passed unit test. Energy differences are equal. $test_label\n";
+       print DEBUG  "Passed unit test. Energy differences are equal. $test_label\n";
+     }
+
+}
 # Caculates and prints script runtime in seconds
 my $end_time = time();
 print "\n\n end time: $end_time \n\n";

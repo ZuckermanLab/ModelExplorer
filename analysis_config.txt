@@ -1,10 +1,10 @@
-efile_init energies-9999
-bfile_init barriers-9999
+efile_init energies-5000
+bfile_init barriers-5000
 analysis vary_dmu_N
 alpha 0
 dmu_W 2
 na_first 0
-dg_sw 0.5
-seed 123456
+dg_SW 0
+seed 456789
 dmu_N -4
 dmu_S 2

@@ -95,7 +95,7 @@ def sort_data(sub_data):
     # Calulate (and store) relative flux
     for i in range(len(sorted_data)):
         sorted_data[i][2] = sorted_data[i][2]/max
-        sorted_data[i][2] = '{:.3f}'.format(sorted_data[i][2])
+        sorted_data[i][2] = '{:.2f}'.format(sorted_data[i][2])
     pprint.pprint(sorted_data)
 
     return sorted_data
