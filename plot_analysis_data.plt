@@ -1,6 +1,6 @@
 set terminal pngcairo enhanced size 1600, 1200 color dashed
 
-PATH = "C:\\Users\\georgeau\\Desktop\\debug\\testing_dgsw2\\n9000"
+PATH = "C:\\Users\\georgeau\\Desktop\\debug\\testing_dgsw1_1e5_a05_s456789\\n2020"
 
 DATAFILE1 = PATH."\\analysis-vary_dmu_N-dmu_init__-10__to__dmu_fin__0"
 #DATAFILE2 = PATH."\\evolver_rates2.dat"
@@ -16,7 +16,7 @@ NEGATIVE_W = 1
 #set arrow from NEGATIVE_S, graph 0 to NEGATIVE_S, graph 1 heads lw 2 lc rgb "purple"
 #set arrow from NEGATIVE_W, graph 0 to NEGATIVE_W, graph 1 heads lw 2 lc rgb "orange"
 
-TITLE = "{/:Bold Transporter: Substrate, Toxin, and Sodium Flows} \n {/*0.85 dmu-W = 2, dg-SW = 2, Na-binds-first = FALSE, Vary dMu-N} \n {/*0.85 alpha = 0, seed = 456789, n-steps = 1e4, n = 9000}"
+TITLE = "{/:Bold Transporter: Substrate, Toxin, and Sodium Flows} \n {/*0.85 dmu-W = 2, dg-SW = 1, Na-binds-first = FALSE, Vary dMu-N} \n {/*0.85 alpha = 0.5, seed = 456789, n-steps = 1e5, n = 2020}"
 OUTPUT = PATH."\\analysis_graph.png"
 
 
