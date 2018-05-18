@@ -1,59 +1,50 @@
-set terminal pngcairo enhanced size 1600, 1200 color dashed
+set terminal pngcairo enhanced size 1600, 1800 color dashed
 
-PATH = "C:\\Users\\georgeau\\Desktop\\debug\\testing_dgsw1_1e5_a05_s456789\\n2020"
-
+PATH = "C:\\Users\\georgeau\\Desktop\\runs\\a_1\\testing_dgsw1_1e5_a1_s456789\\n99999"
 DATAFILE1 = PATH."\\analysis-vary_dmu_N-dmu_init__-10__to__dmu_fin__0"
-#DATAFILE2 = PATH."\\evolver_rates2.dat"
-#DATAFILE3 = PATH."\\evolver_rates3.dat"
-#DATAFILE4 = PATH."\\evolver_rates_s9999999.dat"
-
-NEGATIVE_N = -0.6
-NEGATIVE_S = -3.6
-NEGATIVE_W = 1
-
-#for relative flows
-#set arrow from NEGATIVE_N, graph 0 to NEGATIVE_N, graph 1 heads lt 2 lw 2 lc rgb "pink"
-#set arrow from NEGATIVE_S, graph 0 to NEGATIVE_S, graph 1 heads lw 2 lc rgb "purple"
-#set arrow from NEGATIVE_W, graph 0 to NEGATIVE_W, graph 1 heads lw 2 lc rgb "orange"
-
-TITLE = "{/:Bold Transporter: Substrate, Toxin, and Sodium Flows} \n {/*0.85 dmu-W = 2, dg-SW = 1, Na-binds-first = FALSE, Vary dMu-N} \n {/*0.85 alpha = 0.5, seed = 456789, n-steps = 1e5, n = 2020}"
+TITLE = "{/:Bold Transporter: Substrate, Toxin, and Sodium Flows} \n {/*0.85 dmu-W = 2, dg-SW = 1, Na-binds-first = FALSE, Vary dMu-N} \n {/*0.85 alpha = 2.0, seed = 456789, n-steps = 1e5, n = 99999}"
 OUTPUT = PATH."\\analysis_graph.png"
 
-
 set output OUTPUT
-set title TITLE
-set title font "Arial,26"
-#set title format "{/:Bold}"
-
-set border 31 lw 4
-set lmargin screen 0.1
-set bmargin screen 0.075
-
-set xlabel "{/:Bold d{/Symbol m} (Chemical Potential) Na^+ [kT] }"
-set xlabel font "Arial,22"
-
-
-
-set ylabel "{/:Bold Flow (Into Cell) [Ms^-^1] }" offset -2
-set ylabel font "Arial,22"
-
-set key font "Arial,20"
-set key right top
-set ytics format "{/Arial:Bold {/=18 %0.1t{/Symbol \264}10^{%T}}}"
-set xtics format "{/Arial:Bold {/=18 %h}}"
-
-#set yrange [-2:2]
-set zeroaxis
-set grid
-
-## for relative flows
-#plot DATAFILE1 u ($1):($3/$2) w lines t "{/:Bold Substrate:Sodium }" lt -1 lw 4 lc rgb "green",\
-#DATAFILE1 u ($1):($4/$2) w lines t "{/:Bold Toxin:Sodium }" lt -1 lw 4 lc rgb "red",\
-#DATAFILE1 u ($1):($4/$3) w lines t "{/:Bold Toxin:Substrate }" dashtype 2 lw 4 lc rgb "blue"#,\
-##1/0 t 'Negative Sodium Flow' lw 2 lc rgb "pink", 1/0 t 'Negative Substrate Flow' lw 2 lc rgb "purple",\
-##1/0 t 'Negative Toxin Flow (not in graph)' lw 2 lc rgb "orange"
+set tmargin 5
+set lmargin 18
+set multiplot layout 2, 1 title TITLE font "Arial:Bold,26"
+set ytics format "{/Arial {/=18 %0.1t{/Symbol \264}10^{%T}}}"
+set xtics format "{/Arial {/=18 %h}}"
 
 ## for absolute flows
-plot DATAFILE1 u ($1):($2) w lines t "{/:Bold Sodium }" dashtype 2 lw 4 lc rgb "#40000000",\
-DATAFILE1 u ($1):($3) w lines t '{/:Bold Substrate }' dashtype 1 lw 4 lc rgb "#4000FF00",\
-DATAFILE1 u ($1):($4) w lines t '{/:Bold Toxin}' dashtype 4 lw 4 lc rgb "#40FF0000"
+set title "Absolute Flows"
+set title font "Arial:Bold,22"
+set xlabel "d{/Symbol m} (Chemical Potential) Na^+ [kT]"
+set xlabel font "Arial,22"
+set ylabel "Flow (Into Cell) [Ms^-^1] " offset -2
+set ylabel font "Arial,22"
+set key font "Arial,20"
+set key right top
+set zeroaxis
+set grid
+#set yrange [-2.5e-5:2.5e-5]
+set autoscale y
+
+plot DATAFILE1 u ($1):($2) w lines t "Sodium" dashtype 2 lw 4 lc rgb "#40000000",\
+DATAFILE1 u ($1):($3) w lines t 'Substrate' dashtype 1 lw 4 lc rgb "#4000FF00",\
+DATAFILE1 u ($1):($4) w lines t 'Toxin' dashtype 4 lw 4 lc rgb "#40FF0000"
+
+
+## for relative flows
+set title "Relative Flows"
+set title font "Arial:Bold,22"
+set xlabel "d{/Symbol m} (Chemical Potential) Na^+ [kT]"
+set xlabel font "Arial,22"
+set ylabel "Relative Flow (Into Cell) [Ms^-^1]" offset -2
+set ylabel font "Arial,22"
+set key font "Arial,20"
+set key right bot
+set zeroaxis
+set grid
+set yrange [-3:3]
+#set autoscale y
+
+plot DATAFILE1 u ($1):($3/$2) w lines t "Substrate:Sodium" dashtype 2 lw 4 lc rgb "#40000000",\
+DATAFILE1 u ($1):($3/$4) w lines t "Substrate:Toxin" dashtype 1 lw 4 lc rgb "#4000FF00"
+unset multiplot
