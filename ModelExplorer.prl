@@ -1976,7 +1976,7 @@ sub unit_test_tied_list{
          foreach $key_in_key2 (keys %{$connected_list_deref{$key}}){
            $test_energy2 = $connected_list_deref{$key}{$key_in_key2};
            #print DEBUG "key_in_key2 = $key_in_key2 energy2 = $test_energy2 \n";
-           if ($test_energy != $test_energy2) {
+           if (abs($test_energy- $test_energy2) > 0.00001) {
              $test_fail_flag = 1;
              print DEBUG "TEST FAILED! $list_label connected list is not equivalent. \n";
              print DEBUG "key = $key, key_in_key = $key_in_key, key_in_key2 = $key_in_key2\n";
@@ -2014,7 +2014,7 @@ sub unit_test_check_restored_energies {
          #$value1 = $dictionary1_deref{$key}{$key_in_key};
          #$value2 = $dictionary2_deref{$key}{$key_in_key};
          #print DEBUG "key = $key, key_in_key = $key_in_key, $dictionary1_deref{$key}{$key_in_key} vs $dictionary2_deref{$key}{$key_in_key}\n";
-         if ( $dictionary1_deref{$key}{$key_in_key} ne $dictionary2_deref{$key}{$key_in_key} ) {
+         if ( abs($dictionary1_deref{$key}{$key_in_key} - $dictionary2_deref{$key}{$key_in_key}) >0.00001) { #check if equal within tolerance
            $test_fail_flag = 1;
            print DEBUG "TEST FAILED! $test_label\n";
            print DEBUG "key = $key, key_in_key = $key_in_key\n";
@@ -2067,7 +2067,7 @@ sub unit_test_tied_energy_difference {
      $tied_energy_difference = $dictionaryb_deref{$key}{$key} - $dictionarya_deref{$key}{$key}; #could also use $delta_e
      #print DEBUG "key = $key, E before = $dictionaryb_deref{$key}{$key}, E after = $dictionarya_deref{$key}{$key}, delta E = $tied_energy_difference\n";
      foreach $key_in_key (keys %{$dictionaryb_deref{$key}}){
-         if (($dictionaryb_deref{$key}{$key_in_key} - $dictionarya_deref{$key}{$key_in_key}) != $tied_energy_difference) {
+         if ( abs( ($dictionaryb_deref{$key}{$key_in_key} - $dictionarya_deref{$key}{$key_in_key}) - ($tied_energy_difference) > 0.00001 ) ) {# check if equal within tolerance
            $test_fail_flag = 1;
            print DEBUG "TEST FAILED! $test_label\n";
            print DEBUG "key = $key, key_in_key = $key_in_key\n";
