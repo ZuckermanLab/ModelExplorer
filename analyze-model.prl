@@ -1013,8 +1013,8 @@ if ( $n==0 || $mc_change==1 ) { # save flows for accepted moves
    }
 }
 # print flows among physical ('alt') states (based on last accepted move)
-$s_to_n = sprintf("%.3g", $sflow_save/$nflow_save);
-$s_to_w = sprintf("%.3g", $sflow_save/$wflow_save);
+$s_to_n = sprintf("%.3g", abs($sflow_save/$nflow_save)); #use absolute value of ratio to remove sign
+$s_to_w = sprintf("%.3g", abs($sflow_save/$wflow_save));
 $emc_round = sprintf("%.4g", $emc);
 $sflow_round = sprintf("%.4g", $sflow_save);
 $wflow_round = sprintf("%.4g", $wflow_save);
