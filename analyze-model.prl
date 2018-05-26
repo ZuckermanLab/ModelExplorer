@@ -1023,7 +1023,7 @@ $nflow_round = sprintf("%.4g", $nflow_save);
 if ( $n%$dprint==0 ) {
    $pathways_file = "flux_n$n.csv";
    open(PATHWAYS, "> $pathways_file") or die;
-   print PATHWAYS "$analysis  dmu_now=$dmu_now dmu_N=$dmu_N dmu_S=$dmu_S dmu_W=$dmu_W dg_sw=$dg_SW alpha=$alpha seed=$seed energy_model=$efile_init, emc = $emc_round S_flow = $sflow_round W_flow = $wflow_round N_flow = $nflow_round S:N = $s_to_n S:W = $s_to_w, 0.0 \n";
+   print PATHWAYS "$analysis  dmu_now=$dmu_now dmu_N=$dmu_N dmu_S=$dmu_S dmu_W=$dmu_W dg_sw=$dg_SW alpha=$alpha seed=$seed energy_model=$efile_init, emc = $emc_round S_flow = $sflow_round W_flow = $wflow_round N_flow = $nflow_round |S:N| = $s_to_n |S:W| = $s_to_w, 0.0 \n";
    print "\nn = $n (Monte Carlo step number)      emc = $emc\n";
    #print PATHWAYS "\nn = $n (Monte Carlo step number)      emc = $emc\n";
    print "S flow = $sflow_save    W flow = $wflow_save    N flow = $nflow_save\n";

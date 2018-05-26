@@ -1,8 +1,8 @@
 set terminal pngcairo enhanced size 1600, 1800 color dashed
 
-PATH = "C:\\Users\\georgeau\\Desktop\\runs\\a_1\\testing_dgsw1_1e5_a1_s456789\\n99999"
+PATH = "C:\\Users\\georgeau\\Desktop\\runs\\testing_dgsw1_1e6_a1_25_s456789\\n99999"
 DATAFILE1 = PATH."\\analysis-vary_dmu_N-dmu_init__-10__to__dmu_fin__0"
-TITLE = "{/:Bold Transporter: Substrate, Toxin, and Sodium Flows} \n {/*0.85 dmu-W = 2, dg-SW = 1, Na-binds-first = FALSE, Vary dMu-N} \n {/*0.85 alpha = 2.0, seed = 456789, n-steps = 1e5, n = 99999}"
+TITLE = "{/:Bold Transporter: Substrate, Toxin, and Sodium Flows} \n {/*0.85 dmu-W = 2, dg-SW = 1, Na-binds-first = FALSE, Vary dMu-N} \n {/*0.85 alpha = 1.25 seed = 456789, n-steps = 1e6, n = 999999}"
 OUTPUT = PATH."\\analysis_graph.png"
 
 set output OUTPUT
@@ -42,9 +42,9 @@ set key font "Arial,20"
 set key right bot
 set zeroaxis
 set grid
-set yrange [-3:3]
+set yrange [0:25]
 #set autoscale y
 
-plot DATAFILE1 u ($1):($3/$2) w lines t "Substrate:Sodium" dashtype 2 lw 4 lc rgb "#40000000",\
-DATAFILE1 u ($1):($3/$4) w lines t "Substrate:Toxin" dashtype 1 lw 4 lc rgb "#4000FF00"
+plot DATAFILE1 u ($1):(abs($3/$2)) w lines t "|S:N|" dashtype 2 lw 4 lc rgb "#40000000",\
+DATAFILE1 u ($1):(abs($3/$4)) w lines t "|S/W|" dashtype 1 lw 4 lc rgb "#4000FF00"
 unset multiplot

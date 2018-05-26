@@ -2,11 +2,11 @@
 set terminal  pngcairo size 1400, 1000
 
 
-PATH = "C:\\Users\\georgeau\\Desktop\\runs\\testing_dgsw1_1e5_a075_s123456"
+PATH = "C:\\Users\\georgeau\\Desktop\\runs\\testing_dgsw1_1e6_a1_25_s456789
 
 DATAFILE1 = PATH."\\evolver_rates.dat"
 
-TITLE = "Model-Space Explorer: MC Energy Trajectory \n{/*0.85 MC Energy = -sflow*|sflow/wflow|^a^l^p^h^a} \n{/*0.85 alpha = 0.75, seed = 123456, n steps = 1e5, dmu w = 2, Na first constraint off, dg sw = 1}"
+TITLE = "Model-Space Explorer: MC Energy Trajectory \n{/*0.85 MC Energy = -sflow*|sflow/wflow|^a^l^p^h^a} \n{/*0.85 alpha = 1.25, seed = 456789, n steps = 1e6, dmu w = 2, Na first constraint off, dg sw = 1}"
 OUTPUT = PATH."\\mc_graph.png"
 
 set output OUTPUT
