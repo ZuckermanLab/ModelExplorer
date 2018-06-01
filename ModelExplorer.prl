@@ -22,11 +22,9 @@ use Win32; # for error popup dialog
 # This program has had limited testing. USE AT YOUR OWN RISK!
 
 # IN PROGRESS:
-# fix tied states/barriers for dg_SW = 0
 # update pipeline/automation
 
 # BUGS:
-# dg_SW energies = 0 implementation with new tied states.
 #"use strict" errors out... "Variable name" requires explicit package name.
 
 # USAGE:
@@ -587,13 +585,13 @@ for ( $i=0; $i<$nstates; $i++ ) {
    }
 }
 $n_alt = @alt_states;
+print DEBUG "n_alt = $n_alt\n";
 print "\n";
 
 # initialize barrier energies
 initialize_barriers(); # defines hash of barrier heights, ebars
 @barkeys_unordered = keys %ebars; #note that is is unordered and different for each runtime
 @barkeys = sort @barkeys_unordered; #sorts barkeys so it is the same order for each run! (otherwise trial move picks different barriers)
-
 # correct barrier energies based on tied states
 print "\n";
 foreach $tlist ( @tied_states_tr ) { # now all are two element arrays
@@ -769,7 +767,8 @@ print "connected transitions\n".Dumper($connected_transitions);
 
 print "intializing model...\n";
 initial_model($connected_states, $connected_transitions);
-
+@reference_states = set_reference_state($connected_states,"OF-No-So-Wo"); #pick a top level reference state (alt state) or chooses randomly. Returns group of connected states to ref. 
+print DEBUG "reference_states\n".Dumper(@reference_states);
 # Put the same info into more useful hashes
 ( $ref_one, $ref_two ) = equiv_hashes_from_list ( \@equiv_lists_tr );
 %equiv_tr = %{ $ref_one }; # indicates which key a given transn is referenced to
@@ -849,7 +848,14 @@ if ( $n>0 ) {
          $nrand = floor(rand()*$nstates); # random element of states array
          #print MCFILE "nstates = $nstates   nrand = $nrand\n";
          $tmpstate = $states[$nrand][0];
-         unless ( grep { $tmpstate eq $_ } keys %fixed_states ) { $state_ok = 1; }
+         print DEBUG "tmpstate $tmpstate\n";
+         if ( (grep { $tmpstate eq $_ } @reference_states) ){#debugging
+           print DEBUG "$tmpstate is a fixed reference state:\n".Dumper(@reference_states);
+         }
+         if ( (grep { $tmpstate eq $_ } keys %fixed_states) ){#debugging
+           print DEBUG "$tmpstate is in keys fixed state:\n".Dumper(@reference_states);
+         }
+         unless ( (grep { $tmpstate eq $_ } keys %fixed_states)  || ((grep { $tmpstate eq $_ } @reference_states))  ) { $state_ok = 1; }
          #print MCFILE "MC: chosen state $tmpstate    state_ok = $state_ok\n";
       }
       $delta_e = 2.0*$demax*( rand() - 0.5 ); # amount by which energy of state to be perturbed
@@ -911,6 +917,7 @@ if ( $n>0 ) {
 # Create/re-generate rates and matrix to evaluate initial state or trial move
 # array of state pairs
 # create/update transition matrix of rates, matrix to solve, and hash of transn-state energies
+%ebar_hash = (); #testing
 $i=0;
 foreach $sa (@states) {
    $j=0;
@@ -937,7 +944,19 @@ foreach $sa (@states) {
          }
          $emax = 0.5*(  $energy_a + $energy_b + abs( $energy_a - $energy_b ));
          $ebar = $emax + $ebars{$pairname}; # transition state energy
+         $ebar_hash{$pairname} = $ebar; #TESTING
          $rateij = exp( $ddmu ) * $kzero * exp( -( $ebar - $energy_a ) ); # simple Arrhenius rate * ligand conc
+
+         if ($ebar < 0){ # can't have negative energy barriers? (unphysical) ?
+
+           print "Error! ebar is < 0. ebar = $ebar\n";
+           print DEBUG  "Error! ebar is < 0. ebar = $ebar\n";
+           print DEBUG "energy_a = $energy_a, energy_b = $energy_b \n";
+           print DEBUG "ebars{pairname} = $ebars{$pairname}, emax = $emax,  ebar = $ebar\n";
+           print DEBUG "ebar_hash{pairname} = $ebar_hash{$pairname}, rateij = $rateij\n";
+           #Win32::MsgBox("Error! ebar is < 0. ebar = $ebar. See DEBUG Log for details\n");
+           #exit;
+         }
          #print DEBUG "a_name: $a_name, energy_a: $energy_a, b_name: $b_name, energy_b: $energy_b \n";
          #print DEBUG "ebar = emax + ebars{pairname} = $emax + $ebars{$pairname} = $ebar\n";
          #print DEBUG "rateij = exp( ddmu ) * kzero * exp( -( ebar - energy_a ) ) = exp( $ddmu ) * $kzero * exp( -( $ebar - $energy_a ) ) = $rateij\n\n;"
@@ -1027,7 +1046,7 @@ while (<TMP>) {
    }
 }
 print "steady state values: @alt_pss\n\n";
-#print DEBUG "steady state values: @alt_pss\n\n";
+print DEBUG "steady state values: @alt_pss\n\n";
 close(TMP);
 
 # assign steady-state probabilities to all states
@@ -1217,7 +1236,7 @@ if ( $n%$dprint==0 ) {
 }
 
 # Output model (state and barrier energies) for future use
-# state_print(); # prints states and energies
+# ? state_print(); # prints states and energies ?
 if ( $n%$dprint==0 ) {
    if ( $n==0 ) {
       $modelfolder = "models_from_run";
@@ -1234,6 +1253,13 @@ if ( $n%$dprint==0 ) {
    }
    foreach $transn (@barkeys) {
       print BARRIER "$transn    $ebars{$transn}\n";
+      if (exists $ebars{$transn}){ #testing with ebar values instead of ebars
+        #print BARRIER "$transn    $ebar_hash{$transn}\n";
+        print DEBUG "$transn    $ebar_hash{$transn}\n";
+      }
+
+      #print BARRIER "$transn    $ebar{$transn}\n"; #testing
+      #print DEBUG "transn $transn   ebar{transition} $ebar{$transn}\n";
    }
    close(ENERGY);
    close(BARRIER);
@@ -2113,6 +2139,28 @@ sub unit_test_negative_energy {
      print DEBUG  "Passed unit test. Energy  > = 0. $test_label\n";
    }
 
+}
+
+sub set_reference_state {
+  my ( $dictionary_ref, $top_level_key) = @_; #need to use top level key value (not key of key) to avoid searching through hash
+  my %dictionary_deref = %{$dictionary_ref};
+  my @dictionary_keys = keys %dictionary_deref;
+  my @reference_connected_list = ();
+  my $key = '';
+
+  if (defined $top_level_key && exists $dictionary_deref{$top_level_key}){
+     $key = $top_level_key;
+     print DEBUG "$key is a top level key in the dictionary and will be the reference key.\n";
+  } else {
+     $key = @dictionary_keys[rand @dictionary_keys];
+     print DEBUG "random state chosen to be reference key = $key\n";
+  }
+
+  foreach $key_in_key (keys %{$dictionary_deref{$key}}){
+      push @reference_connected_list, $key_in_key;
+      #print DEBUG "@reference_connected_list $key_in_key\n";
+   }
+  return @reference_connected_list;
 }
 
 # Caculates and prints script runtime in seconds
