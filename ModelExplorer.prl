@@ -585,7 +585,7 @@ for ( $i=0; $i<$nstates; $i++ ) {
    }
 }
 $n_alt = @alt_states;
-print DEBUG "n_alt = $n_alt\n";
+#print DEBUG "n_alt = $n_alt\n";
 print "\n";
 
 # initialize barrier energies
@@ -767,7 +767,7 @@ print "connected transitions\n".Dumper($connected_transitions);
 
 print "intializing model...\n";
 initial_model($connected_states, $connected_transitions);
-@reference_states = set_reference_state($connected_states,"OF-No-So-Wo"); #pick a top level reference state (alt state) or chooses randomly. Returns group of connected states to ref. 
+@reference_states = set_reference_state($connected_states,"OF-No-So-Wo"); #pick a top level reference state (alt state) or chooses randomly. Returns group of connected states to ref.
 print DEBUG "reference_states\n".Dumper(@reference_states);
 # Put the same info into more useful hashes
 ( $ref_one, $ref_two ) = equiv_hashes_from_list ( \@equiv_lists_tr );
@@ -848,12 +848,12 @@ if ( $n>0 ) {
          $nrand = floor(rand()*$nstates); # random element of states array
          #print MCFILE "nstates = $nstates   nrand = $nrand\n";
          $tmpstate = $states[$nrand][0];
-         print DEBUG "tmpstate $tmpstate\n";
+         #print DEBUG "tmpstate $tmpstate\n";
          if ( (grep { $tmpstate eq $_ } @reference_states) ){#debugging
-           print DEBUG "$tmpstate is a fixed reference state:\n".Dumper(@reference_states);
+          # print DEBUG "$tmpstate is a fixed reference state:\n".Dumper(@reference_states);
          }
          if ( (grep { $tmpstate eq $_ } keys %fixed_states) ){#debugging
-           print DEBUG "$tmpstate is in keys fixed state:\n".Dumper(@reference_states);
+           #print DEBUG "$tmpstate is in keys fixed state:\n".Dumper(@reference_states);
          }
          unless ( (grep { $tmpstate eq $_ } keys %fixed_states)  || ((grep { $tmpstate eq $_ } @reference_states))  ) { $state_ok = 1; }
          #print MCFILE "MC: chosen state $tmpstate    state_ok = $state_ok\n";
@@ -902,7 +902,7 @@ if ( $n>0 ) {
 
       $ebars{$bartmp} = $old_energy + $delta_e;
       print MCFILE "Perturb transition state $bartmp by delta_e=$delta_e from $old_energy to (non-negative) $new_energy\n";
-      print DEBUG "Perturb transition state $bartmp by delta_e=$delta_e from $old_energy to (non-negative) $new_energy\n";
+      #print DEBUG "Perturb transition state $bartmp by delta_e=$delta_e from $old_energy to (non-negative) $new_energy\n";
       #adjust_tied_barriers2( $bartmp, $new_energy );
       adjust_tied_barriers2( $bartmp, $connected_transitions, $delta_e);
       #print_energies($connected_transitions, "transitions");
@@ -947,16 +947,7 @@ foreach $sa (@states) {
          $ebar_hash{$pairname} = $ebar; #TESTING
          $rateij = exp( $ddmu ) * $kzero * exp( -( $ebar - $energy_a ) ); # simple Arrhenius rate * ligand conc
 
-         if ($ebar < 0){ # can't have negative energy barriers? (unphysical) ?
 
-           print "Error! ebar is < 0. ebar = $ebar\n";
-           print DEBUG  "Error! ebar is < 0. ebar = $ebar\n";
-           print DEBUG "energy_a = $energy_a, energy_b = $energy_b \n";
-           print DEBUG "ebars{pairname} = $ebars{$pairname}, emax = $emax,  ebar = $ebar\n";
-           print DEBUG "ebar_hash{pairname} = $ebar_hash{$pairname}, rateij = $rateij\n";
-           #Win32::MsgBox("Error! ebar is < 0. ebar = $ebar. See DEBUG Log for details\n");
-           #exit;
-         }
          #print DEBUG "a_name: $a_name, energy_a: $energy_a, b_name: $b_name, energy_b: $energy_b \n";
          #print DEBUG "ebar = emax + ebars{pairname} = $emax + $ebars{$pairname} = $ebar\n";
          #print DEBUG "rateij = exp( ddmu ) * kzero * exp( -( ebar - energy_a ) ) = exp( $ddmu ) * $kzero * exp( -( $ebar - $energy_a ) ) = $rateij\n\n;"
@@ -1046,7 +1037,7 @@ while (<TMP>) {
    }
 }
 print "steady state values: @alt_pss\n\n";
-print DEBUG "steady state values: @alt_pss\n\n";
+#print DEBUG "steady state values: @alt_pss\n\n";
 close(TMP);
 
 # assign steady-state probabilities to all states
@@ -1886,9 +1877,9 @@ sub adjust_tied_barriers2 { # takes in perturbed_state, connected_states_ref, an
       if ($key_in_key eq $perturbed_barrier){
           #print "found perturbed_state! = $key_in_key\n";
           foreach $key_in_key (keys %{$connected_barriers_deref{$key}}){
-            print DEBUG "E old $connected_barriers_deref{$key}{$key_in_key} + delta e $barrier_energy_value = ";
+            #print DEBUG "E old $connected_barriers_deref{$key}{$key_in_key} + delta e $barrier_energy_value = ";
             $connected_barriers_deref{$key}{$key_in_key} = $connected_barriers_deref{$key}{$key_in_key} + $barrier_energy_value;
-            print DEBUG "E new $connected_barriers_deref{$key}{$key_in_key}\n";
+            #print DEBUG "E new $connected_barriers_deref{$key}{$key_in_key}\n";
             $ebars{$key_in_key} = $connected_barriers_deref{$key}{$key_in_key};
             #print "state $key_in_key energy set from $previous_energy to $new_energy\n";
           }
