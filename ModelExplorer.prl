@@ -1490,7 +1490,8 @@ sub mc_energy {
          #print DEBUG "mc_energy: pair $a  $b  with flows $fflow  $bflow\n";
          $wflow +=  $fflow - $bflow; # negative net substrate transport targets more transport
       }
-      $emc = -$sflow*( abs($sflow/$wflow) )**$alpha;
+      #$emc = -$sflow*( abs($sflow/$wflow) )**$alpha; #symporter
+      $emc = $sflow*( abs($sflow/$wflow) )**$alpha; #antiporter
       #$emc = -$sflow;
       #$emc = -($sflow/$nflow);
       #$emc = -$sflow - $alpha*$wflow;
