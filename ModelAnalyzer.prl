@@ -154,8 +154,8 @@ open(ADATA, "> $analysis_file");
 print ADATA "#dmu_now   nflow  sflow  wflow\n";
 
 srand($seed); # initializes random number generator ... should make MC repeatable
-if ( $proof==1 ) {$dg_SW = $dg_sw_config; } # amount by which binding energy of W exceeds that of S
-if ($proof!=1){$Sb_Wb_tied =0 };
+$dg_SW = $dg_sw_config;  # amount by which binding energy of W exceeds that of S
+if ($proof!=1){$Sb_Wb_tied =0; $dg_SW = 0; };
 
 print "Simulation type: proof = $proof  na_first = $na_first Sb_Wb_tied = $Sb_Wb_tied \n";
 print "MC Protocol: Now using flow sflow* |sflow/wflow|**alpha\n";
@@ -1311,8 +1311,17 @@ if ( $n==0 || $mc_change==1 ) { # save flows for accepted moves
    }
 }
 # print flows among physical ('alt') states (based on last accepted move)
-$s_to_n = sprintf("%.3g", abs($sflow_save/$nflow_save)); #use absolute value of ratio to remove sign
-$s_to_w = sprintf("%.3g", abs($sflow_save/$wflow_save));
+if ($nflow_save !=0){
+  $s_to_n = sprintf("%.3g", abs($sflow_save/$nflow_save)); #use absolute value of ratio to remove sign
+} else {
+  $s_to_n = 0;
+}
+if ($wflow_save !=0){
+  $s_to_w = sprintf("%.3g", abs($sflow_save/$wflow_save));
+} else {
+  $s_to_w = 0;
+}
+
 $emc_round = sprintf("%.4g", $emc);
 $sflow_round = sprintf("%.4g", $sflow_save);
 $wflow_round = sprintf("%.4g", $wflow_save);
@@ -2066,7 +2075,7 @@ sub load_config_settings {
     flowfile => "evolver_flows.dat",
     debugfile => "debug",
     logfile => "logfile",
-    directory => "PROOF_MAKER_DATA",
+    directory => "PROOF_MAKER_MODEL_ANALYSIS",
     autobot => "0",
     analysis_type => "vary_dmu_N",
     dg_sw => 2,

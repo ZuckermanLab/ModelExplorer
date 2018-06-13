@@ -9,7 +9,8 @@ from numpy import genfromtxt
 from decimal import Decimal
 import pprint
 import datetime
-
+import warnings # there is a discrepnecy between python and numpy when comparing strings
+warnings.simplefilter(action='ignore', category=FutureWarning) #to ignore the warnings about the discrepency
 # Nodes are hardcoded with name/position.
 def graph_pathways(sub_weighted_edge_list, sub_image_file_name, sub_analysis_labels = {}):
 
@@ -21,19 +22,31 @@ def graph_pathways(sub_weighted_edge_list, sub_image_file_name, sub_analysis_lab
     image_file_name = sub_image_file_name
     G=nx.DiGraph()
 
-    G.add_node("OF-No-So-Wo",pos=(100,150))
-    G.add_node("OF-No-Sb-Wo",pos=(50,75))
-    G.add_node("OF-Nb-So-Wo",pos=(100,100))
-    G.add_node("OF-No-So-Wb",pos=(150,125))
-    G.add_node("OF-Nb-Sb-Wo",pos=(75,25))
-    G.add_node("OF-Nb-So-Wb",pos=(125,50))
 
-    G.add_node("IF-No-So-Wo",pos=(300,150))
-    G.add_node("IF-No-Sb-Wo",pos=(250,75))
-    G.add_node("IF-Nb-So-Wo",pos=(300,100))
-    G.add_node("IF-No-So-Wb",pos=(350,125))
-    G.add_node("IF-Nb-Sb-Wo",pos=(275,25))
-    G.add_node("IF-Nb-So-Wb",pos=(325,50))
+    #manually add and position nodes. Not ideal.
+    #checks first node pair for 'OF-No-So-Wo' and/or 'OF-No-So'. Not ideal since that states could appear in a different order
+    if 'OF-No-So-Wo' in weighted_edge_list[0]: #for proofreading.
+        G.add_node("OF-No-So-Wo",pos=(100,150))
+        G.add_node("OF-No-Sb-Wo",pos=(50,75))
+        G.add_node("OF-Nb-So-Wo",pos=(100,100))
+        G.add_node("OF-No-So-Wb",pos=(150,125))
+        G.add_node("OF-Nb-Sb-Wo",pos=(75,25))
+        G.add_node("OF-Nb-So-Wb",pos=(125,50))
+        G.add_node("IF-No-So-Wo",pos=(300,150))
+        G.add_node("IF-No-Sb-Wo",pos=(250,75))
+        G.add_node("IF-Nb-So-Wo",pos=(300,100))
+        G.add_node("IF-No-So-Wb",pos=(350,125))
+        G.add_node("IF-Nb-Sb-Wo",pos=(275,25))
+        G.add_node("IF-Nb-So-Wb",pos=(325,50))
+    elif 'OF-No-So' in weighted_edge_list[0]: #for non-proofreading.
+        G.add_node("OF-No-So",pos=(100,150))
+        G.add_node("OF-No-Sb",pos=(50,75))
+        G.add_node("OF-Nb-So",pos=(150,125))
+        G.add_node("OF-Nb-Sb",pos=(100,25))
+        G.add_node("IF-No-So",pos=(300,150))
+        G.add_node("IF-No-Sb",pos=(250,75))
+        G.add_node("IF-Nb-So",pos=(350,125))
+        G.add_node("IF-Nb-Sb",pos=(300,25))
 
     G.add_weighted_edges_from(weighted_edge_list)
 
