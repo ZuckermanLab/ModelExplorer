@@ -22,9 +22,12 @@ def graph_pathways(sub_weighted_edge_list, sub_image_file_name, sub_analysis_lab
     image_file_name = sub_image_file_name
     G=nx.DiGraph()
 
+    print("weighted edge list\n")
+    pprint.pprint(weighted_edge_list)
 
     #manually add and position nodes. Not ideal.
     #checks first node pair for 'OF-No-So-Wo' and/or 'OF-No-So'. Not ideal since that states could appear in a different order
+    #had to turn off threshold so reference state would appear when it had low flow
     if 'OF-No-So-Wo' in weighted_edge_list[0]: #for proofreading.
         G.add_node("OF-No-So-Wo",pos=(100,150))
         G.add_node("OF-No-Sb-Wo",pos=(50,75))
@@ -97,7 +100,7 @@ def sort_data(sub_data):
         #flows.insert(i, data[i][2])
         flows.append(data[i][2])
     max = np.nanmax(flows)
-    threshold = 0.01 * max
+    threshold = 0.0 * max # so it can find reference node OF-No-So if its flow is very low. not ideal
 
     # Find transitions with flux > 0 and > threshold. Store in new array.
     for i in range(len(data)):
