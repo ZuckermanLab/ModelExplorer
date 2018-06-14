@@ -1499,7 +1499,8 @@ sub mc_energy {
       print "\nmc_energy: S flow = $sflow    W flow = $wflow    N flow = $nflow (for current trial)\n\n";
    }
    else {
-      $emc = -$sflow;
+      $emc = -$sflow;#symporter
+      $emc = $sflow;#antiporter
    }
    return ( $emc, $sflow, $wflow, $nflow );
 }
