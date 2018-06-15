@@ -1,8 +1,8 @@
 set terminal pngcairo enhanced size 1600, 1800 color dashed
 
-PATH = "C:\\Users\\georgeau\\Desktop\\runs\\testing_dgsw1_1e6_a1_25_s456789\\n99999"
+PATH = "C:\\Users\\georgeau\\Desktop\\runs\\na_first\\na_first_a1_dgsw1_s123456\\99999"
 DATAFILE1 = PATH."\\analysis-vary_dmu_N-dmu_init__-10__to__dmu_fin__0"
-TITLE = "{/:Bold Transporter: Substrate, Toxin, and Sodium Flows} \n {/*0.85 dmu-W = 2, dg-SW = 1, Na-binds-first = FALSE, Vary dMu-N} \n {/*0.85 alpha = 1.25 seed = 456789, n-steps = 1e6, n = 999999}"
+TITLE = "{/:Bold Transporter: Substrate, Toxin, and Sodium Flows} \n {/*0.85 dmu-W = 2, dg-SW = 1, Na-binds-first = TRUE, Vary dMu-N} \n {/*0.85 alpha = 1.0 seed = 123456, n-steps = 1e5, n = 99999}"
 OUTPUT = PATH."\\analysis_graph.png"
 
 set output OUTPUT

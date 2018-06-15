@@ -1,6 +1,7 @@
 # Transporter Flux Pathway Grapher - August George - 2018
 # Takes in a .CSV of state A, state B, and flux A->B (with first row reserved for labels) and makes a directed graph
 # of the state space pathways (using relative flux)
+# Improvements: make more pythonic (list comprehensions, EAFP), don't hard code node postions
 
 import networkx as nx
 import numpy as np
@@ -9,8 +10,7 @@ from numpy import genfromtxt
 from decimal import Decimal
 import pprint
 import datetime
-import warnings # there is a discrepnecy between python and numpy when comparing strings
-warnings.simplefilter(action='ignore', category=FutureWarning) #to ignore the warnings about the discrepency
+
 # Nodes are hardcoded with name/position.
 def graph_pathways(sub_weighted_edge_list, sub_image_file_name, sub_analysis_labels = {}):
 
@@ -22,13 +22,9 @@ def graph_pathways(sub_weighted_edge_list, sub_image_file_name, sub_analysis_lab
     image_file_name = sub_image_file_name
     G=nx.DiGraph()
 
-    print("weighted edge list\n")
-    pprint.pprint(weighted_edge_list)
 
     #manually add and position nodes. Not ideal.
-    #checks first node pair for 'OF-No-So-Wo' and/or 'OF-No-So'. Not ideal since that states could appear in a different order
-    #had to turn off threshold so reference state would appear when it had low flow
-    if 'OF-No-So-Wo' in weighted_edge_list[0]: #for proofreading.
+    if 'proof=1' in analysis_labels[0]: #checks for proofreading.
         G.add_node("OF-No-So-Wo",pos=(100,150))
         G.add_node("OF-No-Sb-Wo",pos=(50,75))
         G.add_node("OF-Nb-So-Wo",pos=(100,100))
@@ -41,7 +37,7 @@ def graph_pathways(sub_weighted_edge_list, sub_image_file_name, sub_analysis_lab
         G.add_node("IF-No-So-Wb",pos=(350,125))
         G.add_node("IF-Nb-Sb-Wo",pos=(275,25))
         G.add_node("IF-Nb-So-Wb",pos=(325,50))
-    elif 'OF-No-So' in weighted_edge_list[0]: #for non-proofreading.
+    elif 'proof=0' in analysis_labels[0]: #checks for non-proofreading.
         G.add_node("OF-No-So",pos=(100,150))
         G.add_node("OF-No-Sb",pos=(50,75))
         G.add_node("OF-Nb-So",pos=(150,125))
@@ -97,10 +93,9 @@ def sort_data(sub_data):
 
     # Find max flux and calculate minimum threshold for a significant flux (1%)
     for i in range(len(data)):
-        #flows.insert(i, data[i][2])
         flows.append(data[i][2])
     max = np.nanmax(flows)
-    threshold = 0.0 * max # so it can find reference node OF-No-So if its flow is very low. not ideal
+    threshold = 0.01 * max
 
     # Find transitions with flux > 0 and > threshold. Store in new array.
     for i in range(len(data)):
