@@ -10,7 +10,7 @@ use File::Copy qw(copy);
 use Cwd qw(chdir);
 use Storable qw(dclone);
 use Win32; # for error popup dialog
-
+use Chart::Gnuplot;
 #use strict; #errors out
 
 # Monte Carlo program to explore 'model space' by using steady-state transport
@@ -97,7 +97,7 @@ $flowfile = $parameters{"flowfile"}; #temporary file whihc contains configuratio
 $debugfile = $parameters{"debugfile"}; # outputs debug info (as needed)
 #$logfile = $parameters{"logfile"}; # console output to log file
 #$autobot = $parameters{"autobot"}; # turn on/off automation (default = 0 = OFF) #currently disabled
-$analysis_type = $parameters{"analysis_type"}; #what type of analysis to do (vary dmu_N,S, or W)
+$analysis = $parameters{"analysis_type"}; #what type of analysis to do (vary dmu_N,S, or W)
 $dg_sw_config = $parameters{"dg_sw"};
 $dg_SW = $dg_sw_config; # amount by which binding energy of W exceeds that of S
 $Sb_Wb_tied = $parameters{"Sb_Wb_tied"}; #controls how "tied" Sb and Wb barriers are ...
@@ -106,6 +106,7 @@ $Sb_Wb_tied = $parameters{"Sb_Wb_tied"}; #controls how "tied" Sb and Wb barriers
 #... 2: Transition w/ Sb state = Transition w/ Wb state (i.e. OF-Sb->IF-Sb = OF-Wb->IF-Wb), ...
 #... 3: both 1 and 2
 $energy_function = $parameters{"energy_function"};
+$graph = $parameters{"graph"}; #turns on pathway and flow graphing
 if ( $proof!=1 ) { #if proof reading is turned off, there is no 'W'
   $Sb_Wb_tied =0;
   $dg_SW = 0;
@@ -645,7 +646,7 @@ for ( $i=0; $i<@barkeys; $i++ ) {
        if ( $bpair =~ m/$apair_trans[0]/ && $bpair =~ m/$apair_trans[1]/){
             for ($k=0; $k<$n_units; $k++) { #go through each base unit to find base transition
               if ($bpair_split[$k] ne $bpair_split[$k+$n_units+1] ){ #compare base units of each states. "+1" term skips over 'AND'
-                @bpair_trans = ("$bpair_split[$k]","$bpair_split[$k+$n_units+1]"); #save transition base units for comparision later "key transition"
+                #@bpair_trans = ("$bpair_split[$k]","$bpair_split[$k+$n_units+1]"); #save transition base units for comparision later "key transition"
                 $bpair_split[$k] = "XX"; #replace transition with XXs (so we can check if equal with second transition state)
                 $bpair_split[$k+$n_units+1] = "XX";
                 $bpair_copy =~ s/$bpair_split[$k]/XX/;
@@ -1241,7 +1242,6 @@ $sflow_round = sprintf("%.4g", $sflow_save);
 $wflow_round = sprintf("%.4g", $wflow_save);
 $nflow_round = sprintf("%.4g", $nflow_save);
 
-
 if ( $n%$dprint==0 ) {
    $pathways_file = "flux_n$n.csv";
    open(PATHWAYS, "> $pathways_file") or die;
@@ -1312,8 +1312,11 @@ close(ADATA);
   #system("python $find_min_script $alpha $seed $nsteps $analysis_type");
 #}
 
+if ($graph == 1){
+  call_python_pathway_grapher($pathway_grapher);
+  graph_flows($analysis_file);
+}
 
-call_python_pathway_grapher($pathway_grapher);
 
 
 #################################################################################
@@ -1976,6 +1979,7 @@ sub load_config_settings {
     bfile_init => "barriers-1",
     analysis => "vary_dmu_N",
     energy_function => "symporter",
+    graph => 0,
   );
   my @required_parameters = ( # Required paramters to be in config file
     "proof", "na_first", # Simulation Parameters
@@ -1991,11 +1995,12 @@ sub load_config_settings {
     "bfile_init", #barrier file
     "analysis", #which type of analysis (vary dmu n,s,w)
     "energy_function", #which energy function to use (i.e. for symport or antiport)
+    "graph", #turn on/off graphing of flows
   );
   my %config;
   Config::Simple->import_from( $config_file, \%config);
-  for (@required_parameters ) {  # Verify
-    print "Parameter '$_' is missing from config. Using default value = $default_parameters{$_}\n" unless exists $config{$_};
+  for $param (@required_parameters ) {  # Verify
+    print "Parameter '$param' is missing from config. Using default value = $default_parameters{$param}\n" unless exists $config{$param};
   }
   my %settings = (%default_parameters, %config );
   #print "settings: \n". Dumper(%settings)."\n";
@@ -2201,6 +2206,169 @@ $pathway_grapher_filename = $_[0];
 system("python $pathway_grapher_filename > pathway_graphing_log");
 }
 
+#graphs the flows
+
+sub graph_flows {
+
+  my $sub_datafile = $_[0]; # aka $analysis file
+  my (@x,@y1,@y2,@y3,@y4,@y5) = (); #arrays to store data from data file
+
+  #read in data file
+  open(DFILE, "< $sub_datafile") or die "Error! Cannot open $sub_datafile";
+  my @lines_of_data= <DFILE>;
+  close( DFILE );
+
+  #load each space value into a seperate array
+  foreach $line ( @lines_of_data) {
+    next if ( $line =~ /^\s*#/ ); #skip if a # comment
+
+    ($dmu_x, $flow_N, $flow_S, $flow_W) = split( /\s+/, $line ); # parse through data
+    push(@x, $dmu_x ); #push data to array
+    push(@y1, $flow_N); #to graph absolute flow
+    push(@y2, $flow_S);
+    push(@y3, $flow_W);
+    if ($flow_W != 0){ # don't divide by zero when proofreading is turned off
+      push(@y4, ($flow_S/$flow_W)); # to graph flow ratios
+    } else { push(@y4, 0.0); }
+    push(@y5, ($flow_S/$flow_N));
+  }
+
+
+  #data sets to be plotted (chart::gnuplot cannot do multiple datasets per file)
+  my $data_set1 = Chart::Gnuplot::DataSet->new(
+    xdata => \@x,
+    ydata => \@y1,
+    style => "lines",
+    title => "N flow",
+    color => "#000000",
+    width => "3",
+  );
+
+  my $data_set2 = Chart::Gnuplot::DataSet->new(
+    xdata => \@x,
+    ydata => \@y2,
+    style => "lines",
+    title => "S flow",
+    color => "#009933",
+    width => "3",
+  );
+
+  my $data_set3 = Chart::Gnuplot::DataSet->new(
+    xdata => \@x,
+    ydata => \@y3,
+    style => "lines",
+    title => "W flow",
+    color => "#cc0000",
+    width => "3",
+  );
+
+  my $data_set4 = Chart::Gnuplot::DataSet->new(
+    xdata => \@x,
+    ydata => \@y4,
+    style => "lines",
+    title => "S:W",
+    color => "#009933",
+    width => "3",
+  );
+
+  my $data_set5 = Chart::Gnuplot::DataSet->new(
+    xdata => \@x,
+    ydata => \@y5,
+    style => "lines",
+    title => "S:N",
+    color => "#000000",
+    width => "3",
+  );
+
+
+  #find which analysis type it is and then label accordingly
+  #need to fix stlye! Don't Repeat Yourself!
+  #multiplot wasn't working so make two seperate images
+  if ($sub_datafile =~ m/dmu_N/){
+    #make a new chart. note that gnuplot path needs to be specified in Windows
+      $left = Chart::Gnuplot->new(
+        output => "absolute_flows.png",
+        gnuplot => "C:\\Program Files\\gnuplot\\bin\\gnuplot.exe",
+        terminal => 'png',
+        title  => "Absolute Flows: Varying dMu N",
+        timestamp => "on",
+        xlabel => "dMu N",
+        ylabel => "Flow",
+      );
+      $right = Chart::Gnuplot->new(
+        output => "relative_flows.png",
+        gnuplot => "C:\\Program Files\\gnuplot\\bin\\gnuplot.exe",
+        terminal => 'png',
+        title  => "Relative Flows: Varying dMu N",
+        timestamp => "on",
+        xlabel => "dMu N",
+        ylabel => "Flow",
+      );
+  } elsif($sub_datafile =~ m/dmu_S/) {
+    #make a new chart. note that gnuplot path needs to be specified in Windows
+      $left= Chart::Gnuplot->new(
+        output => "absolute_flows.png",
+        gnuplot => "C:\\Program Files\\gnuplot\\bin\\gnuplot.exe",
+        terminal => 'png',
+        title  => "Absolute Flows: Varying dMu S",
+        timestamp => "on",
+        xlabel => "dMu S",
+        ylabel => "Flow",
+        );
+      $right = Chart::Gnuplot->new(
+        output => "relative_flows.png",
+        gnuplot => "C:\\Program Files\\gnuplot\\bin\\gnuplot.exe",
+        terminal => 'png',
+        title  => "Relative Flows: Varying dMu S",
+        timestamp => "on",
+        xlabel => "dMu S",
+        ylabel => "Flow",
+        );
+  } elsif($sub_datafile =~ m/dmu_W/) {
+    #make a new chart. note that gnuplot path needs to be specified in Windows
+      $left = Chart::Gnuplot->new(
+        output => "absolute_flows.png",
+        gnuplot => "C:\\Program Files\\gnuplot\\bin\\gnuplot.exe",
+        terminal => 'png',
+        title  => "Absolute Flows: Varying dMu W",
+        timestamp => "on",
+        xlabel => "dMu W",
+        ylabel => "Flow",
+      );
+      $right = Chart::Gnuplot->new(
+        output => "relative_flows.png",
+        gnuplot => "C:\\Program Files\\gnuplot\\bin\\gnuplot.exe",
+        terminal => 'png',
+        title  => "Relative Flows: Varying dMu W",
+        timestamp => "on",
+        xlabel => "dMu W",
+        ylabel => "Flow",
+      );
+  } else {
+      $left = Chart::Gnuplot->new(
+        output => "absolute_flows.png",
+        gnuplot => "C:\\Program Files\\gnuplot\\bin\\gnuplot.exe",
+        terminal => 'png',
+        title  => "Absolute Flows",
+        timestamp => "on",
+        xlabel => "dMu",
+        ylabel => "Flow",
+      );
+      $right = Chart::Gnuplot->new(
+        output => "relative_flows.png",
+        gnuplot => "C:\\Program Files\\gnuplot\\bin\\gnuplot.exe",
+        terminal => 'png',
+        title  => "RelativeFlows",
+        timestamp => "on",
+        xlabel => "dMu",
+        ylabel => "Flow",
+      );
+  }
+
+$left->plot2d($data_set1,$data_set2,$data_set3);
+$right->plot2d($data_set4,$data_set5);
+
+}
 
 # Caculates and prints script runtime in seconds
 my $end_time = time();

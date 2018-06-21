@@ -101,7 +101,7 @@ $Sb_Wb_tied = $parameters{"Sb_Wb_tied"}; #controls how "tied" Sb and Wb barriers
 #... 2: Transition w/ Sb state = Transition w/ Wb state (i.e. OF-Sb->IF-Sb = OF-Wb->IF-Wb), ...
 #... 3: both 1 and 2
 $energy_function = $parameters{"energy_function"};
-$graph = $parameters{"graph"};
+$graph = $parameters{"graph"}; #turns on MC trajectory graphing
 if ( $proof!=1 ) { #if proof reading is turned off, there is no 'W'
   $Sb_Wb_tied =0;
   $dg_SW = 0;
@@ -125,6 +125,7 @@ my $pythonfilenew = $directory."\/".$pythonfile;
 my $config_path_new = $directory."\/".$config_path;
 my $analyze_script_new = $directory."\/".$analyze_script;
 my $python_analysis_new = $directory."\/".$python_analysis;
+my $analysis_config_new = $directory."\/".$analysis_config;
 #my $find_min_script_new = $directory."\/".$find_min_script;#automation diasbled for now
 
 #copy files to new directory
@@ -132,6 +133,7 @@ copy $pythonfile, $pythonfilenew; #copy python script into new folder
 copy $config_path, $config_path_new;
 copy $analyze_script, $analyze_script_new;
 copy $python_analysis, $python_analysis_new;
+copy $analysis_config, $analysis_config_new;
 #copy $find_min_script, $find_min_script_new; #automation diasbled for now
 
 chdir("$directory") or die "Error! Cannot change working directory: $!\n"; #change working directory

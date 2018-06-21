@@ -1,10 +1,33 @@
-efile_init energies-5000
-bfile_init barriers-5000
-analysis vary_dmu_N
-alpha 0
-dmu_W 2
-na_first 0
-dg_SW 0
-seed 456789
-dmu_N -4
-dmu_S 2
+#ModelAnalyzer config file (using config::simple)
+#format: 'keyname value'. No apostrophe, w/ space as delimiter.
+#no comments on same line as key/value pair
+#default values in code/readme
+
+#energy files
+efile_init energies-1
+bfile_init barriers-1
+
+#simulation config
+directory n
+seed 1337
+nsteps 1e2
+graph 1
+
+#transporter type
+energy_function antiporter
+
+##physical parameters
+#na_first 0
+#dmu_N -4
+dmu_S -2
+#dmu_W 2
+#fmu_N 0.5
+#fmu_S 0.5
+#fmu_W 0.5
+
+##proofreading parameters
+#proof 1
+#alpha 1
+#dg_SW 1.5
+#Sb_Wb_tied 2
+
