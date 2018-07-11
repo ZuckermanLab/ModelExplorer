@@ -4,21 +4,21 @@
 #default values in code/readme
 
 #simulation config
-directory antiporter8
-seed 1337
+directory symporter_s456789
+seed 456789
 nsteps 1e4
 graph 1
 
 #transporter type
-energy_function antiporter
+energy_function symporter
 
 ##physical parameters
 #na_first 0
 #dmu_N -4
-dmu_S -2
+#dmu_S -2
 #dmu_W 2
-#fmu_N 0.5
-#fmu_S 0.5
+fmu_N 0.0
+fmu_S 0.0
 #fmu_W 0.5
 
 ##proofreading parameters
