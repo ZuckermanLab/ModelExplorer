@@ -826,11 +826,52 @@ while (<BTMP>) {
 }
 close(BTMP);
 
+print LOG "Inputted Energies and Barriers...\n";
+foreach $sa (@states) {
+   $a_name_0 = $$sa[0];
+   $energy_a_0 = $energies{$a_name_0};
+   #$old_energies{$a_name_0} = $energy_a_0;
+   print LOG "$a_name_0    $energy_a_0\n";
+   print DEBUG "$a_name_0    $energy_a_0\n";
+}
+foreach $transn (@barkeys) {
+   $barrier_0 = $ebars{$transn};
+   #$old_barriers{$transn} = $barrier_0;
+   print DEBUG "$transn    $barrier_0\n";
+ }
+
+
+print DEBUG "set energies/barriers to specific model values\n";
+# set connected state/barriers to specific model values (not initialized values)
+adjust_states_to_model($connected_states);
+adjust_barriers_to_model($connected_transitions);
 
 my %old_barriers = %ebars;
 my %old_energies = %energies;
 
-print LOG "Inputted Energies and Barriers...\n";
+
+$manually_adjust = $parameters{"manually_adjust"};
+$manually_adjust = 1;
+
+if ($manually_adjust == 1){
+  $bartmp = $parameters{"adjust_barrier"};
+  $delta_e = $parameters{"energy_adjustment"}; #adds this amount
+  print LOG " manually adjusting $bartmp by adding $delta_e\n";
+  adjust_tied_barriers2( $bartmp, $connected_transitions, $delta_e);
+  %old_barriers = %ebars;  # update barriers for unit test (don't want to change barriers past this point)
+}
+# elsif ($manually_adjust == 2) {
+#   $tmpstate = $parameters{"adjust_state"};
+#   $delta_e = $parameters{"energy_adjustment"};
+#   adjust_tied_energies2( $tmpstate, $connected_states, $delta_e);
+#   %old_energies = %energies;
+# }
+
+unit_test_negative_energy($connected_transitions, "transitions");
+unit_test_compare_energies2(\%old_energies,\%energies);
+unit_test_compare_energies2(\%old_barriers,\%ebars);
+
+print LOG "Adjusted Energies and Barriers...\n";
 foreach $sa (@states) {
    $a_name_0 = $$sa[0];
    $energy_a_0 = $energies{$a_name_0};
@@ -842,11 +883,6 @@ foreach $transn (@barkeys) {
    #$old_barriers{$transn} = $barrier_0;
    print LOG "$transn    $barrier_0\n";
  }
-
-
-unit_test_compare_energies2(\%old_energies,\%energies);
-unit_test_compare_energies2(\%old_barriers,\%ebars);
-
 
 
 ################################################################
@@ -919,7 +955,7 @@ if ( $n>0 && $not_mc !=1) {
          }
          if ( (grep { $tmpstate eq $_ } keys %fixed_states) ){#debugging
          }
-         unless ( (grep { $tmpstate eq $_ } keys %fixed_states)  || ((grep { $tmpstate eq $_ } @reference_states))  ) { $state_ok = 1; }
+         unless ( (grep { $tmpstate eq $_ } keys %fixed_states)  || ((grep { $tmpstate eq $_ } @reference_states))  ) { $state_ok = 1; } # don't change ref state energy
          #print MCFILE "MC: chosen state $tmpstate    state_ok = $state_ok\n";
       }
       $delta_e = 2.0*$demax*( rand() - 0.5 ); # amount by which energy of state to be perturbed
@@ -1913,7 +1949,9 @@ sub adjust_tied_barriers2 { # takes in perturbed_state, connected_states_ref, an
       if ($key_in_key eq $perturbed_barrier){
           #print LOG "found perturbed_state! = $key_in_key\n";
           foreach $key_in_key (keys %{$connected_barriers_deref{$key}}){
+            print "$connected_barriers_deref{$key}{$key_in_key} + $barrier_energy_value = ";
             $connected_barriers_deref{$key}{$key_in_key} = $connected_barriers_deref{$key}{$key_in_key} + $barrier_energy_value;
+            print "$connected_barriers_deref{$key}{$key_in_key}";
             $ebars{$key_in_key} = $connected_barriers_deref{$key}{$key_in_key};
             #print LOG "state $key_in_key energy set from $previous_energy to $new_energy\n";
           }
@@ -1984,6 +2022,10 @@ sub load_config_settings {
     analysis => "vary_dmu_N",
     energy_function => "symporter",
     graph => 0,
+    manually_adjust => 0,
+    adjust_barrier => "",
+    adjust_state => "",  # not using
+    energy_adjustment => 0,
   );
   my @required_parameters = ( # Required paramters to be in config file
     "proof", "na_first", # Simulation Parameters
@@ -2000,6 +2042,7 @@ sub load_config_settings {
     "analysis", #which type of analysis (vary dmu n,s,w)
     "energy_function", #which energy function to use (i.e. for symport or antiport)
     "graph", #turn on/off graphing of flows
+    "manually_adjust", "adjust_barrier","adjust_state","energy_adjustment",  # parameters for manual adjustments of state/barrier energy
   );
   my %config;
   Config::Simple->import_from( $config_file, \%config);
@@ -2373,6 +2416,47 @@ $left->plot2d($data_set1,$data_set2,$data_set3);
 $right->plot2d($data_set4,$data_set5);
 
 }
+
+sub adjust_states_to_model{
+
+  my $energy_dictionary_ref = $_[0];
+  my %energy_dictionary_deref = %{$energy_dictionary_ref};
+
+  print DEBUG "Adjusting state energies for model...\n\n";
+
+  foreach $key (keys %energy_dictionary_deref){
+     print DEBUG "key = $key\n";
+     foreach $key_in_key (keys %{$energy_dictionary_deref{$key}}){
+         print DEBUG "key = $key_in_key value = $energy_dictionary_deref{$key}{$key_in_key} \n";
+         print DEBUG "key = $key_in_key energies{$key_in_key} = $energies{$key_in_key} \n";
+         $energy_dictionary_deref{$key}{$key_in_key} = $energies{$key_in_key};
+         print DEBUG "key = $key_in_key value2 = $energy_dictionary_deref{$key}{$key_in_key} \n";
+     }
+     print DEBUG "\n";
+  }
+  print LOG "\n";
+}
+
+sub adjust_barriers_to_model{
+
+    my $energy_dictionary_ref = $_[0];
+    my %energy_dictionary_deref = %{$energy_dictionary_ref};
+
+    print DEBUG "Adjusting barrier energies for model...\n\n";
+
+    foreach $key (keys %energy_dictionary_deref){
+       print DEBUG "key = $key\n";
+       foreach $key_in_key (keys %{$energy_dictionary_deref{$key}}){
+           print DEBUG "key = $key_in_key value = $energy_dictionary_deref{$key}{$key_in_key} \n";
+           print DEBUG "key = $key_in_key ebars{$key_in_key} = $ebars{$key_in_key} \n";
+           $energy_dictionary_deref{$key}{$key_in_key} = $ebars{$key_in_key};
+           print DEBUG "key = $key_in_key value2 = $energy_dictionary_deref{$key}{$key_in_key} \n";
+       }
+       print DEBUG "\n";
+    }
+    print LOG "\n";
+}
+
 
 # Caculates and prints script runtime in seconds
 my $end_time = time();
