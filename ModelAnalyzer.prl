@@ -851,7 +851,7 @@ my %old_energies = %energies;
 
 
 $manually_adjust = $parameters{"manually_adjust"};
-$manually_adjust = 1;
+#$manually_adjust = 1;
 
 if ($manually_adjust == 1){
   $bartmp = $parameters{"adjust_barrier"};
