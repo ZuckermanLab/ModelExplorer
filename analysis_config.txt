@@ -1,12 +1,16 @@
-#ModelExplorer config file (using config::simple)
+#ModelAnalyzer config file (using config::simple)
 #format: 'keyname value'. No apostrophe, w/ space as delimiter.
 #no comments on same line as key/value pair
 #default values in code/readme
 
+#energy files
+efile_init energies-1
+bfile_init barriers-1
+
 #simulation config
-directory symporter_s456789
+directory n
 seed 456789
-nsteps 1e4
+nsteps 1e2
 graph 1
 
 #transporter type
@@ -26,3 +30,4 @@ fmu_S 0.0
 #alpha 1
 #dg_SW 1.5
 #Sb_Wb_tied 2
+

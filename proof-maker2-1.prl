@@ -17,39 +17,40 @@ use Cwd qw(chdir);
 # Additional updates by August George 2017-18
 # Please see README for more information
 
-# IN PROGRESS: Checked that barrier energies properly reset after rejection.
-# Checking if equivalent barriers are corrent.
-# Added config file
+# This program has had limited testing. USE AT YOUR OWN RISK!
 
-# UPDATES:
-# "Energies not properly restored after rejection" bug fixed. States weren't
-# properly connected. Python script is now used to create correct connections.
+# IN PROGRESS:
+# fix tied states/barriers for dg_SW = 0
+# update pipeline/automation
 
 # BUGS:
-# Need to check barrier/transitions for propery connections (similar to previous state energy bug)
+# dg_SW energies = 0 implementation with new tied states.
 #"use strict" errors out... "Variable name" requires explicit package name.
 
-# USAGE: ./proof-maker.prl > log  (i.e., there is no input file)
+# USAGE:
+# Use config file to set parameters (listed near bottom of code)
+# run in command line using ./ModelExplorer.prl > log
 # In addition to screen ouput (which can be re-directed to log file) several files are
 # generated automatically.
 # For basic analysis, plot MC energy vs step number: first two columns of evolver_rates.dat,
 # which is one of the output files. Negative energies correspond to "successful" models
 # given by the energy function.
+# This program also uses a python script to check for network consistency
 
 # TOP TO-DO (see full list in readme):
 # Improve program performance (distance subroutine botleneck, PDL matrix solver)
 # Improve documentation (code comments and readme)
 # Rewrite code into subroutines
-# Use config file (in progress)
-# Add unit tests
+# Use config file (DONE)
+# Add unit tests (In Progress)
 
 # UNIT TESTS TO ADD:
 # (1) Sum of steady state probabilities is one
 # (2) Ratio of rates for a state pair give Boltz fac of energy difference
 # (3) Energy differences among tied states match constraints
 # (4) Energies of fixed states remain at constrained values
-# (5) Reject/Restore step properly restores energies
-# (6) Tied states graphs are self-consistent
+# (5) Reject/Restore step properly restores energies (DONE)
+# (6) Tied states graphs are self-consistent (DONE)
 
 # To get estimated runtime
 my $start_time = time(); # for basic performance testing
@@ -427,15 +428,11 @@ for ( $i=0; $i<$nstates; $i++ ) {
 }
 print "\n";
 
-#print DEBUG "transition adjacent matrix:\n".Dumper(@transition_adjacent_matrix);
-#print DEBUG "state adjacent matrix:\n".Dumper(@state_adjacent_matrix);
-#print DEBUG "tied_states_tr:\n".Dumper(@tied_states_tr);
-#print DEBUG "transition state names:\n".Dumper(@transition_names_matrix);
+
 # From tied states, construct lists with same populations (second version)
 %samep_alt = ();
 %equiv_alt = ();
 @equiv_lists = @{ equiv_list_from_pairs( \@tied_states ) };
-#print DEBUG "equiv_lists:\n".Dumper(@equiv_lists);
 
 # Put the same info into more useful hashes
 ( $ref_one, $ref_two ) = equiv_hashes_from_list ( \@equiv_lists );
@@ -457,7 +454,6 @@ foreach $key ( @samekeys_alt ) {
 print "DUPLICATES of other states: @dups_alt\n";
 print "\n";
 
-#print DEBUG "DUPLICATES of other states:\n".Dumper(@dups_alt);
 
 @equivkeys_alt = keys(%equiv_alt);
 print "These are the equivalents:\n";
@@ -540,9 +536,6 @@ print "\n";
 matrix_to_csv(\@state_adjacent_matrix, "adjacent_matrix.csv", $nstates, \@snames);
 matrix_to_csv(\@state_relative_energy, "energies_matrix.csv", $nstates, \@snames);
 
-
-
-
 # overall initializations (prior to MC loop)
 @rates = ();
 @edges = (); # a Boolean variable for visualizing/accessing non-zero values of rate matrix
@@ -605,7 +598,7 @@ my $equiv_tansns_name = "";
 
 #print DEBUG "@barkeys\n";
 
-#testing
+
 # find equivalent transitions
 print "\nFinding equivalent transitions\n";
 @equiv_transns = ();
@@ -636,11 +629,6 @@ for ( $i=0; $i<@barkeys; $i++ ) {
      $both_trans = "$apair to $bpair";
      #print DEBUG "$both_trans\n";
 
-
-    # if ($apair eq "OF-No-Sb-Wo_AND_OF-Nb-Sb-Wo" || $bpair eq "OF-No-Sb-Wo_AND_OF-Nb-Sb-Wo"){
-    #     print DEBUG "1. $apair to $bpair\n";
-    # }
-
      $if_equiv = 0; #if_equiv = 1 if two transition states are equivalent
      $equal_base_count = 0; #tracks the number of base units that are equal/equiv
      #print DEBUG "0. Checking $apair and $bpair for equivalent transition... \n";
@@ -670,7 +658,7 @@ for ( $i=0; $i<@barkeys; $i++ ) {
                        }
                } # end of else { #check for equivalent bases
            }
-           
+
            if ($n_to_sw_tied == 1 && $same_dg_sw == 1 ) {
              #print DEBUG "...checking for Nb to Sb or Wb equivalent transition\n";
              #assumes a_pair and b_pair have the same key transition.
@@ -805,56 +793,7 @@ for ( $i=0; $i<@barkeys; $i++ ) {
       } # end of if ($proofreading)
      } # end of else
 
-
-     # if ($n_to_sw_tied == 1 && $same_dg_sw == 1 ) {
-     #   #print DEBUG "...checking for Nb to Sb or Wb equivalent transition\n";
-     #   #assumes a_pair and b_pair have the same key transition.
-     #   #print DEBUG "$apair and $bpair\n";
-     #   my $match = 0;
-     #
-     #   if ( ($apair_split[0] eq $apair_split[0+$n_units+1]) && ($apair_split[0] eq $bpair_split[0]) && ($apair_split[0] eq $bpair_split[0+$n_units+1]) ){ # check if first base matches (OF or IF)
-     #
-     #     #print DEBUG "apair: $apair bpair: $bpair\n";
-     #     my $apair_key_trans = "$apair_trans[0] $apair_trans[1]";
-     #     my $bpair_key_trans = "$bpair_trans[0] $bpair_trans[1]";
-     #     #print DEBUG "   key transitions (apair bpair): $apair_key_trans $bpair_key_trans\n";
-     #
-     #     foreach my $tlist2 (@tied_nb){ #check if n bound transition
-     #       if ($apair_key_trans eq $tlist2){ #check apair for n bound transition
-     #         foreach my $tlist3 (@tied_nb){
-     #           if ($bpair_key_trans eq $tlist3){ #check bpair for n bound transition
-     #             $match = 1;
-     #
-     #           }
-     #         }
-     #       }
-     #
-     #     }
-     #
-     #     if ( $match ==1){ #check if in tied_for_sw list (So Wb, Si Wb, Sb Wo, Sb Wi)
-     #          # check if last two terms are in extra tied states group
-     #          $a_sw_pair = "$apair_split[2] $apair_split[3]";
-     #          $b_sw_pair = "$bpair_split[2] $bpair_split[3]";
-     #          #print DEBUG "$apair $apair_split[2] $apair_split[3] and $bpair $bpair_split[2] $bpair_split[3]\n";
-     #          foreach my $element (@tied_for_SW_bind) {
-     #            if ( $element eq $a_sw_pair ){
-     #              foreach my $element2 (@tied_for_SW_bind){
-     #                if ( $element2 eq $b_sw_pair ){
-     #                  $equal_base_count = 4;# set equal base count to 4
-     #                  #print DEBUG "MATCH! Equivalant transition (Nb to Sb or Wb) $apair and $bpair  \n";
-     #
-     #                  if ($apair eq "OF-No-Sb-Wo_AND_OF-Nb-Sb-Wo" || $bpair eq "OF-No-Sb-Wo_AND_OF-Nb-Sb-Wo"){
-     #                                 print DEBUG "$apair to $bpair\n";
-     #                  }
-     #
-     #                }
-     #               }
-     #             }
-     #            }
-     #       }
-     #
-     #     }
-     #   }
+     # note: putting if ($n_to_sw_tied == 1 && $same_dg_sw == 1 ) routine here will change functionality!
 
 
      } # end of if ( $apair ne $bpair )
@@ -912,21 +851,12 @@ for ( $i=0; $i<@transition_state_list; $i++ ) {
 }
 matrix_to_csv(\@transition_adjacent_matrix, "transition_state_adjacent_matrix.csv", $n_transition_states, \@transition_state_list);
 matrix_to_csv(\@transition_energy_matrix, "transition_state_energy_matrix.csv", $n_transition_states, \@transition_state_list);
-#print DEBUG "hash_equiv_transns:\n".Dumper(%hash_equiv_transns);
-#print DEBUG "tmp_transition_names_list:\n".Dumper(@tmp_transition_state_list);
-#print DEBUG "transition_names_list:\n".Dumper(@transition_state_list);
-#print DEBUG "transition_adjacent_matrix:\n".Dumper(@transition_adjacent_matrix);
 
 
 # Information for maintaining equivalent barrier heights for equivalent transitions
 # Makes lists of equivalent barriers (transitions)
 @equiv_lists_tr = @{ equiv_list_from_pairs( \@equiv_transns ) };
 
-
-#print DEBUG "equiv_transns:\n".Dumper(@equiv_transns);
-#print DEBUG "equiv_lists_tr:\n".Dumper(@equiv_lists_tr);
-
-#matrix_to_csv(\@transition_adjacent_matrix, "transition_adjacent_matrix.csv",$nstates, \@snames );
 
 print "\nLists of equivalent transitions\n";
 foreach $list ( @equiv_lists_tr ) {
@@ -946,12 +876,6 @@ initial_model($connected_states, $connected_transitions);
 ( $ref_one, $ref_two ) = equiv_hashes_from_list ( \@equiv_lists_tr );
 %equiv_tr = %{ $ref_one }; # indicates which key a given transn is referenced to
 %same_bar = %{ $ref_two }; # hash giving all states referenced to a key
-
-# assign energies for barriers
-foreach $pair ( @barkeys ) { # loop over all barriers
-  adjust_tied_barriers( $pair, $ebars{$pair} );
-}
-
 
 @samekeys_tr = keys ( %same_bar );
 @dups_tr = (); # list of all transitions equivalent to some other
@@ -1032,7 +956,7 @@ if ( $n>0 ) {
       $energies{$tmpstate} = $new_energy; # set state's energy to new energy
       print MCFILE "Perturb state $tmpstate by delta_e=$delta_e from $old_energy to $new_energy\n";
       #print DEBUG "Perturb state $tmpstate by delta_e=$delta_e from $old_energy to $new_energy\n";
-      adjust_tied_energies2( $tmpstate, $connected_states, $delta_e);
+      adjust_tied_energies2( $tmpstate, $connected_states, $new_energy);
    }
    else { # trial move is perturbation to transition-state (energy barrier) energy
       #print DEBUG "pre-trial barrier energies = \n".Dumper(%ebars);
@@ -1045,6 +969,7 @@ if ( $n>0 ) {
       $delta_e = 2.0*$demax*( rand() - 0.5 ); # amount by which energy of state to be perturbed
       $old_energy = $ebars{$bartmp};
       $new_energy = $old_energy + $delta_e;
+      print DEBUG "n =$n new_energy=$new_energy\n";
       if ( grep { $bartmp eq $_ } @slowpairs ) {
          print MCFILE "... CHANGING A SLOW TRANSN STATE\n";
          #print DEBUG "... CHANGING A SLOW TRANSN STATE\n";
@@ -1058,7 +983,7 @@ if ( $n>0 ) {
       print MCFILE "Perturb transition state $bartmp by delta_e=$delta_e from $old_energy to (non-negative) $new_energy\n";
       #print DEBUG "Perturb transition state $bartmp by delta_e=$delta_e from $old_energy to (non-negative) $new_energy\n";
       #adjust_tied_barriers2( $bartmp, $new_energy );
-      adjust_tied_barriers2( $bartmp, $connected_transitions, $delta_e);
+      adjust_tied_barriers2( $bartmp, $connected_transitions, $new_energy);#fix this to use new/old energy!!!
    }
 }
 
@@ -1265,7 +1190,7 @@ if ( $n>0 ) { # check if move accepted
          $energies{$tmpstate} = $old_energy;
          print MCFILE "State rejection: Change back state $tmpstate to $energies{$tmpstate}\n";
          print DEBUG "State rejection: Change back state $tmpstate to $energies{$tmpstate}\n";
-         adjust_tied_energies2( $tmpstate, $connected_states, (-1.0*$delta_e)); #note: negative change in energy used to reset
+         adjust_tied_energies2( $tmpstate, $connected_states, $old_energy);
          #print DEBUG "state energies reset = \n".Dumper(%energies);
          unit_test_check_restored_energies($old_connected_states, $connected_states, "states");
       }
@@ -1273,7 +1198,7 @@ if ( $n>0 ) { # check if move accepted
          $ebars{$bartmp} = $old_energy;
          print MCFILE "Barrier rejection: Change back transition state $bartmp to  $ebars{$bartmp}\n";
          print DEBUG "Barrier rejection: Change back transition state $bartmp to  $ebars{$bartmp}\n";
-         adjust_tied_barriers2( $bartmp, $connected_transitions, (-1.0*$delta_e)); #note: negative change in energy used to reset
+         adjust_tied_barriers2( $bartmp, $connected_transitions, $old_energy); #note: negative change in energy used to reset
          #print DEBUG "barrier energies reset = \n".Dumper(%ebars);
          unit_test_check_restored_energies($old_connected_transitions, $connected_transitions, "transitions");
       }
@@ -1988,7 +1913,7 @@ print DEBUG "model has been initialized!\n";
 sub adjust_tied_barriers2 { # takes in perturbed_state, connected_states_ref, and energy_pertubation
   my $perturbed_barrier = $_[0];
   my $connected_barriers_ref = $_[1];
-  my $barrier_energy_pertubation = $_[2];
+  my $barrier_energy_value = $_[2];
   my %connected_barriers_deref = %{$connected_barriers_ref};
   print "perturbed_state: $perturbed_barrier \n";
   #search for connected subgraph of perturbed state
@@ -1998,10 +1923,8 @@ sub adjust_tied_barriers2 { # takes in perturbed_state, connected_states_ref, an
       if ($key_in_key eq $perturbed_barrier){
           #print "found perturbed_state! = $key_in_key\n";
           foreach $key_in_key (keys %{$connected_barriers_deref{$key}}){
-            $previous_energy = $connected_barriers_deref{$key}{$key_in_key};
-            $new_energy = $previous_energy + $barrier_energy_pertubation;
-            $connected_barriers_deref{$key}{$key_in_key} = $new_energy;
-            $ebars{$key_in_key} = $new_energy;
+            $connected_barriers_deref{$key}{$key_in_key} = $barrier_energy_value;
+            $ebars{$key_in_key} = $barrier_energy_value;
             #print "state $key_in_key energy set from $previous_energy to $new_energy\n";
           }
       }
@@ -2012,7 +1935,7 @@ sub adjust_tied_barriers2 { # takes in perturbed_state, connected_states_ref, an
 sub adjust_tied_energies2 { # takes in perturbed_state, connected_states_ref, and energy_pertubation
   my $perturbed_state = $_[0];
   my $connected_states_ref = $_[1];
-  my $energy_pertubation = $_[2];
+  my $state_energy_value = $_[2];
   my %connected_states_deref = %{$connected_states_ref};
   print "perturbed_state: $perturbed_state \n";
   #search for connected subgraph of perturbed state
@@ -2022,10 +1945,10 @@ sub adjust_tied_energies2 { # takes in perturbed_state, connected_states_ref, an
       if ($key_in_key eq $perturbed_state){
           #print "found perturbed_state! = $key_in_key\n";
           foreach $key_in_key (keys %{$connected_states_deref{$key}}){
-            $previous_energy = $connected_states_deref{$key}{$key_in_key};
-            $new_energy = $previous_energy + $energy_pertubation;
-            $connected_states_deref{$key}{$key_in_key} = $new_energy;
-            $energies{$key_in_key} = $new_energy;
+            #$previous_energy = $connected_states_deref{$key}{$key_in_key};
+            #$new_energy = $previous_energy + $energy_pertubation;
+            $connected_states_deref{$key}{$key_in_key} = $state_energy_value;
+            $energies{$key_in_key} = $state_energy_value;
             #print "state $key_in_key energy set from $previous_energy to $new_energy\n";
           }
       }
@@ -2069,8 +1992,8 @@ sub load_config_settings {
     autobot => "0",
     analysis_type => "vary_dmu_N",
     dg_sw => 2,
-    same_dg_sw => 1,
-    n_to_sw_tied => 1,
+    same_dg_sw => 0,
+    n_to_sw_tied => 0,
   );
   my @required_parameters = ( # Required paramters to be in config file
     "proof", "na_first", # Simulation Parameters
@@ -2119,7 +2042,7 @@ sub unit_test_tied_list{
              $test_fail_flag = 1;
              print DEBUG "TEST FAILED! $list_label connected list is not equivalent. \n";
              print DEBUG "key = $key, key_in_key = $key_in_key, key_in_key2 = $key_in_key2\n";
-             print DEBUG "energy = $test_energy, energy = $test_energy2 \n";
+             print DEBUG "energy = $test_energy, energy2 = $test_energy2 \n";
            }
          }
      }
@@ -2152,6 +2075,7 @@ sub unit_test_check_restored_energies {
            $test_fail_flag = 1;
            print DEBUG "TEST FAILED! $test_label\n";
            print DEBUG "key = $key, key_in_key = $key_in_key\n";
+           print DEBUG "$dictionary1_deref{$key}{$key_in_key} != $dictionary2_deref{$key}{$key_in_key}\n";
          }
      }
   }

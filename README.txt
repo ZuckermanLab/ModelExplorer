@@ -130,6 +130,12 @@ $ebump = 1.0;  # amount by which initial transition-state (barrier) energy excee
 
 4. ASSUMPTIONS/QUESTIONS(in progress):
 
+# Sb states are tied to Wb states to maintain the dg_sw difference between them.
+
+*WE ARE TIEING BARRIERS FOR Sb and Wb (OF-Nb->IF-Nb = OF-Wb->IF-Wb ) AND (No->Nb = Wo->Wb)
+By drawing the free energy levels, you will see that this is equivalent to the usual assumption (e.g., Hopfield's in the original kinetic proofreading) 
+that the substrates differ only in their off-rates. Also, tying the barriers together makes the substrates smoothly equivalent as dg_SW -> 0.  
+
 *Should OF-IF conformational transistions be equivalent (when N, S, and W are held constant)?
 *Same barrier for W and S (un)binding. Should barrier difference = 0 for s & w?
 *Na must bind first (based on experimental insight)
@@ -243,6 +249,8 @@ Fix equivalent transitions (proof-reading section) subroutine to be cleaner (som
 Correct Initialized Model?
 
 Better was to fix randomness issue?
+
+test that all tied members are consistent with any/all constraints ( encode and run through all constraints ...) 
 
 small bug: cannot use strict
 small bug: transition states are printed into evolver_rates.dat

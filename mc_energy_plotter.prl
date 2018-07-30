@@ -1,0 +1,48 @@
+#!/usr/bin/perl -w
+#
+# Proof-Maker Data Plotter Script
+# Written by August George
+# Last Updated: July 14, 2017
+#
+# Purpose: This program plots the MC Energy Value (Y) vs MC Step Number (X)
+# in the "evolver_rates.dat" file which is calculated in "proof-maker.prl".
+#
+# Notes: Need to have Gnuplot, Perl, Perl Chart::Gnuplot, and
+# Imagemagick installed.
+#
+# Need a better 'method' for filepath and run to integrate in larger program
+
+use Chart::Gnuplot;
+
+print "testing";
+#my $path = "/home/august/ZuckermanLab/Programs/Proof_maker/exacloud_data/alpha1_v2";
+my $path ='C:\Users\georgeau\Box Sync\August\ZuckermanLab\Proof-maker\github_repository\proof_maker';
+# Set run iteration and file path
+my $alpha = "test";
+my $run = "run";
+my $emc = "( -sflow*|sflow/wflow|^alpha )";
+my $name = $alpha."_".$run;
+my $filename = "evolver_rates.dat";
+#my $filename ="data_sort.dat"; # use for data_sort.dat
+
+# Configure chart
+my $chart = Chart::Gnuplot->new(
+    output => "$path\\MC_energy_$name.png",
+    title => {text => "Proof-Maker Monte Carlo Energy: Alpha = $alpha , Seed = $run , EMC = $emc ",font => "arial,22"},
+    xlabel => {text => "MC Step Number (not physical units)", font => "arial, 20"},
+    ylabel => {text => "MC Energy Level (not physical units)", font => "arial, 20"},
+    size => "2, 2",
+    yrange => [-1e-8,1e-8],
+    grid  => {linetype => "dash"},
+    xrange => [0,10000], # as needed
+);
+
+# Load and configure data
+my $dataSet = Chart::Gnuplot::DataSet->new(
+    datafile => "$path\\$filename",
+    #style => "linespoints",
+    style => "linespoints", # use for data_sort.dat
+);
+
+# Create 2d plot
+$chart->plot2d($dataSet);

@@ -53,15 +53,20 @@ use Chart::Gnuplot;
 # (6) Tied states graphs are self-consistent (DONE)
 
 # To get estimated runtime
-my $start_time = time(); # for basic runtime
+
+my $start_time = time(); # for basic performance testing
 #print LOG "\n\nstart time: $start_time\n\n";
 
-
 #################### CONFIGURATION ####################
-my $config_path = "config.txt";
-%parameters = load_config_settings($config_path);
 
-#non ideal solution to use config file with existing code... (prexisting parameters set to hash values loaded from config file)
+my $not_mc = 1;
+my $config_path = "analysis_config.txt";
+%parameters = load_config_settings($config_path);
+$efile_init = $parameters{"efile_init"}; # energy file used for reference model
+$bfile_init = $parameters{"bfile_init"}; # barrier file used for reference model
+$analysis = $parameters{"analysis"}; #analysis type (vary_dmu_W,S, or N)
+
+#temporary solution to use config file with existing code... (prexisting paramters set to hash values loaded from config file)
 $proof = $parameters{"proof"}; # 1 if proofreading (additional states and transitions present compared to simple transport)
 $na_first = $parameters{"na_first"}; # 1 if 'sodium' (N) is forced to bind first
 $nsteps = $parameters{"nsteps"}; # number of Monte Carlo steps
@@ -92,7 +97,8 @@ $datfile = $parameters{"datfile"}; # outputs MC number and MC energy function. U
 $flowfile = $parameters{"flowfile"}; #temporary file whihc contains configuration states for trial pertubation
 $debugfile = $parameters{"debugfile"}; # outputs debug info (as needed)
 #$logfile = $parameters{"logfile"}; # console output to log file
-#$autobot = $parameters{"autobot"}; # turn on/off automation (default = 0 = OFF), currently disabled
+#$autobot = $parameters{"autobot"}; # turn on/off automation (default = 0 = OFF) #currently disabled
+$analysis = $parameters{"analysis_type"}; #what type of analysis to do (vary dmu_N,S, or W)
 $dg_sw_config = $parameters{"dg_sw"};
 $dg_SW = $dg_sw_config; # amount by which binding energy of W exceeds that of S
 $Sb_Wb_tied = $parameters{"Sb_Wb_tied"}; #controls how "tied" Sb and Wb barriers are ...
@@ -101,56 +107,65 @@ $Sb_Wb_tied = $parameters{"Sb_Wb_tied"}; #controls how "tied" Sb and Wb barriers
 #... 2: Transition w/ Sb state = Transition w/ Wb state (i.e. OF-Sb->IF-Sb = OF-Wb->IF-Wb), ...
 #... 3: both 1 and 2
 $energy_function = $parameters{"energy_function"};
-$graph = $parameters{"graph"}; #turns on MC trajectory graphing
+$graph = $parameters{"graph"}; #turns on pathway and flow graphing
 if ( $proof!=1 ) { #if proof reading is turned off, there is no 'W'
   $Sb_Wb_tied =0;
   $dg_SW = 0;
 }
 
-srand($seed); # initializes random number generator ... should make MC repeatable
+if ( $analysis eq "vary_dmu_N") {
+  $dmu_init = -10;
+  $dmu_fin = 0;
+} elsif ($analysis eq "vary_dmu_W"){
+  $dmu_init = -2;
+  $dmu_fin = 4;
+} elsif ($analysis eq "vary_dmu_S"){
+  $dmu_init = -2;
+  $dmu_fin = 4;
+}
+$dmu_inc = ( $dmu_fin - $dmu_init ) / $nsteps;
 
-#create new directory for this run to store files
 unless(-e $directory or mkdir $directory) { #make directory if directory does not already exist
         die "Unable to create $directory\n";
     }
 
+my $pythonfile = "python_graph_script.py";
+my $analyze_script = "analyze-model.prl";
+#my $find_min_script = "find_min.py"; #automation currently disabled
+my $pathway_grapher = "graph_pathways.py";
+my $analysis_file = "analysis-" . $analysis . "-dmu_init__$dmu_init" . "__to__" . "dmu_fin__$dmu_fin";
 
-
-my $pythonfile = "python_graph_script.py"; #creates equivalient states/transitions
-my $analyze_script = "ModelAnalyzer.prl"; #analyzers by sweeping dmu
-my $analysis_config = "analysis_config.txt"; #configures analysis
-my $python_analysis = "graph_pathways.py"; #loads and creates pathway graphs
-#my $find_min_script = "find_min.py"; #automation diasbled for now
-
-#new directory location
 my $pythonfilenew = $directory."\/".$pythonfile;
 my $config_path_new = $directory."\/".$config_path;
 my $analyze_script_new = $directory."\/".$analyze_script;
-my $python_analysis_new = $directory."\/".$python_analysis;
-my $analysis_config_new = $directory."\/".$analysis_config;
-#my $find_min_script_new = $directory."\/".$find_min_script;#automation diasbled for now
+#my $find_min_script_new = $directory."\/".$find_min_script;#automation currently disabled
+my $efile_init_new = $directory."\/".$efile_init;
+my $bfile_init_new = $directory."\/".$bfile_init;
+my $pathway_grapher_new = $directory."\/".$pathway_grapher;
 
-#copy files to new directory
 copy $pythonfile, $pythonfilenew; #copy python script into new folder
 copy $config_path, $config_path_new;
 copy $analyze_script, $analyze_script_new;
-copy $python_analysis, $python_analysis_new;
-copy $analysis_config, $analysis_config_new;
-#copy $find_min_script, $find_min_script_new; #automation diasbled for now
+#copy $find_min_script, $find_min_script_new; #automation currently disabled
+copy $efile_init, $efile_init_new;
+copy $bfile_init, $bfile_init_new;
+copy $pathway_grapher, $pathway_grapher_new;
+
 
 chdir("$directory") or die "Error! Cannot change working directory: $!\n"; #change working directory
 
-
-my $logfile = "datalog"; #make datalog
+my $logfile = "datalog"; #make log file
 open(LOG, "> $logfile") or die "Error! Cannot open $logfile";
 
 open(MCFILE, "> $mcfile") or die "Error! Cannot open $mcfile";
 open(DATA, "> $datfile") or die "Error! Cannot open $datfile";
 open(FLOWS, "> $flowfile") or die "Error! Cannot open $flowfile";
 open(DEBUG, "> $debugfile") or die "Error! Cannot open $debugfile";
+open(ADATA, "> $analysis_file");
+print ADATA "#dmu_now   nflow  sflow  wflow\n";
 
+srand($seed); # initializes random number generator ... should make MC repeatable
 
-# Simulation Configuration print out
 print LOG "Simulation type: proof = $proof  na_first = $na_first Sb_Wb_tied = $Sb_Wb_tied energy_function = $energy_function\n";
 print LOG "MC Protocol: Now using flow sflow* |sflow/wflow|**alpha\n";
 print LOG "MC Parameters: $nsteps steps    seed = $seed    demax = $demax    alpha = $alpha\n";
@@ -163,7 +178,6 @@ if ( $proof==1 ) { print LOG "    dg_SW = $dg_SW"; }
 
 print LOG "\n\n";
 
-#################### STATE SPACE CONFIGURATION ####################
 
 # units (cycles) which combinatorially form states: state names fully describe states
 @state_bases = ( [ "OF", "IF" ],           # outward facing, inward facing
@@ -603,6 +617,8 @@ my @transition_state_list = ();
 my %hash_equiv_transns = ();
 my $equiv_tansns_name = "";
 
+
+
 # find equivalent transitions
 print LOG "\nFinding equivalent transitions\n";
 @equiv_transns = ();
@@ -751,7 +767,6 @@ if ($proof==1){
 } else {
   @reference_states = set_reference_state($connected_states,"OF-No-So");
 }
-
 print DEBUG "reference_states\n".Dumper(@reference_states);
 # Put the same info into more useful hashes
 ( $ref_one, $ref_two ) = equiv_hashes_from_list ( \@equiv_lists_tr );
@@ -797,6 +812,79 @@ if ( $proof==1 ) {
 }
 
 
+###### Read in model (energies, barriers)
+open(ETMP, "< $efile_init") or die "ERROR! cannot open efile $efile_init";
+while (<ETMP>) {
+   @vals = split ' ', $_;
+   $energies{$vals[0]} = 1.0*$vals[1];
+}
+close(ETMP);
+open(BTMP, "< $bfile_init") or die "ERROR! cannot open bfile $bfile_init";
+while (<BTMP>) {
+   @vals = split ' ', $_;
+   $ebars{$vals[0]} = 1.0*$vals[1];
+}
+close(BTMP);
+
+print LOG "Inputted Energies and Barriers...\n";
+foreach $sa (@states) {
+   $a_name_0 = $$sa[0];
+   $energy_a_0 = $energies{$a_name_0};
+   #$old_energies{$a_name_0} = $energy_a_0;
+   print LOG "$a_name_0    $energy_a_0\n";
+   print DEBUG "$a_name_0    $energy_a_0\n";
+}
+foreach $transn (@barkeys) {
+   $barrier_0 = $ebars{$transn};
+   #$old_barriers{$transn} = $barrier_0;
+   print DEBUG "$transn    $barrier_0\n";
+ }
+
+
+print DEBUG "set energies/barriers to specific model values\n";
+# set connected state/barriers to specific model values (not initialized values)
+adjust_states_to_model($connected_states);
+adjust_barriers_to_model($connected_transitions);
+
+my %old_barriers = %ebars;
+my %old_energies = %energies;
+
+
+$manually_adjust = $parameters{"manually_adjust"};
+#$manually_adjust = 1;
+
+if ($manually_adjust == 1){
+  $bartmp = $parameters{"adjust_barrier"};
+  $delta_e = $parameters{"energy_adjustment"}; #adds this amount
+  print LOG " manually adjusting $bartmp by adding $delta_e\n";
+  adjust_tied_barriers2( $bartmp, $connected_transitions, $delta_e);
+  %old_barriers = %ebars;  # update barriers for unit test (don't want to change barriers past this point)
+}
+# elsif ($manually_adjust == 2) {
+#   $tmpstate = $parameters{"adjust_state"};
+#   $delta_e = $parameters{"energy_adjustment"};
+#   adjust_tied_energies2( $tmpstate, $connected_states, $delta_e);
+#   %old_energies = %energies;
+# }
+
+unit_test_negative_energy($connected_transitions, "transitions");
+unit_test_compare_energies2(\%old_energies,\%energies);
+unit_test_compare_energies2(\%old_barriers,\%ebars);
+
+print LOG "Adjusted Energies and Barriers...\n";
+foreach $sa (@states) {
+   $a_name_0 = $$sa[0];
+   $energy_a_0 = $energies{$a_name_0};
+   #$old_energies{$a_name_0} = $energy_a_0;
+   print LOG "$a_name_0    $energy_a_0\n";
+}
+foreach $transn (@barkeys) {
+   $barrier_0 = $ebars{$transn};
+   #$old_barriers{$transn} = $barrier_0;
+   print LOG "$transn    $barrier_0\n";
+ }
+
+
 ################################################################
 for ( $n=0; $n<=$nsteps; $n++ ) { # MONTE CARLO LOOP
 ################################################################
@@ -805,27 +893,69 @@ print MCFILE "\nMonte Carlo loop: n = $n\n\n";
 print LOG "\nMonte Carlo loop: n = $n\n\n";
 print DEBUG "\nMonte Carlo loop: n = $n\n\n";
 
-#to compare energies before/after
 $old_connected_states = dclone $connected_states;
 $old_connected_transitions = dclone $connected_transitions;
 
+foreach $sa (@states) {
+   $a_name_0 = $$sa[0];
+   $energy_a_0 = $energies{$a_name_0};
+   #$old_energies{$a_name_0} = $energy_a_0;
+   print LOG "$a_name_0    $energy_a_0\n";
+}
+foreach $transn (@barkeys) {
+   $barrier_0 = $ebars{$transn};
+   #$old_barriers{$transn} = $barrier_0;
+   print LOG "$transn    $barrier_0\n";
+ }
+
+$dmu_now = $dmu_init + $n*$dmu_inc;
+if ( $analysis eq "vary_dmu_N" ) {
+   print LOG "\nAnalysis type: $analysis\n";
+   $dmu_N = $dmu_now;
+   $energy_terms{'No'} = -$fmu_N*$dmu_N;
+   $energy_terms{'Ni'} = (1-$fmu_N)*$dmu_N; # Note that 1 - fmu_N -(-fmu_N) = 1
+   foreach $key ( keys(%energy_terms) ) { print LOG "energy_term $key = $energy_terms{$key}\n"; }
+}
+elsif ( $analysis eq "vary_dmu_W" ) {
+   print LOG "\nAnalysis type: $analysis\n";
+   $dmu_W = $dmu_now;
+   $energy_terms{'Wo'} = -$fmu_W*$dmu_W;
+   $energy_terms{'Wi'} = (1-$fmu_W)*$dmu_W; # Note that 1 - fmu_W -(-fmu_W) = 1
+   foreach $key ( keys(%energy_terms) ) { print LOG "energy_term $key = $energy_terms{$key}\n"; }
+}
+elsif ( $analysis eq "vary_dmu_S" ) {
+   print LOG "\nAnalysis type: $analysis\n";
+   $dmu_S = $dmu_now;
+   $energy_terms{'So'} = -$fmu_S*$dmu_S;
+   $energy_terms{'Si'} = (1-$fmu_S)*$dmu_S; # Note that 1 - fmu_S -(-fmu_S) = 1
+   foreach $key ( keys(%energy_terms) ) { print LOG "energy_term $key = $energy_terms{$key}\n"; }
+}
+foreach $state (@states) {
+   $name = $$state[0];
+   $energies_noneq{$name} = energy_noneq( \@$state );
+   print LOG "State name and indices: @$state   E_noneq = $energies_noneq{$name}\n";
+}
+
+unit_test_compare_energies2(\%old_energies,\%energies);
+unit_test_compare_energies2(\%old_barriers,\%ebars);
 
 ## Trial move
-if ( $n>0 ) {
+if ( $n>0 && $not_mc !=1) {
 
    # choose random state or transition-state energy to perturb
    if ( rand() < 0.5 ) { # trial move is perturbation to state energy
+      #print_energies($old_connected_states, "old states");
       $state_move = 1;  # 1 for changing state, 0 for changing barrier
       $state_ok = 0; # flag for whether chosen state is in fixed list and should be excluded
       while ( $state_ok==0 ) {
          $nrand = floor(rand()*$nstates); # random element of states array
          #print MCFILE "nstates = $nstates   nrand = $nrand\n";
          $tmpstate = $states[$nrand][0];
-         if ( (grep { $tmpstate eq $_ } @reference_states) ){#debugging
+         if ( (grep { $tmpstate eq $_ } @reference_states) ){#debugging;
          }
          if ( (grep { $tmpstate eq $_ } keys %fixed_states) ){#debugging
          }
-         unless ( (grep { $tmpstate eq $_ } keys %fixed_states)  || ((grep { $tmpstate eq $_ } @reference_states))  ) { $state_ok = 1; }
+         unless ( (grep { $tmpstate eq $_ } keys %fixed_states)  || ((grep { $tmpstate eq $_ } @reference_states))  ) { $state_ok = 1; } # don't change ref state energy
          #print MCFILE "MC: chosen state $tmpstate    state_ok = $state_ok\n";
       }
       $delta_e = 2.0*$demax*( rand() - 0.5 ); # amount by which energy of state to be perturbed
@@ -856,6 +986,7 @@ if ( $n>0 ) {
             $delta_e = 0.0;
       } #change delta e such that old energy + delta = 0
          # equivalent to setting minimum rate to be kzero
+
       $ebars{$bartmp} = $old_energy + $delta_e;
       print MCFILE "Perturb transition state $bartmp by delta_e=$delta_e from $old_energy to (non-negative) $new_energy\n";
       adjust_tied_barriers2( $bartmp, $connected_transitions, $delta_e);
@@ -896,7 +1027,6 @@ foreach $sa (@states) {
          $ebar = $emax + $ebars{$pairname}; # transition state energy
          $ebar_hash{$pairname} = $ebar; #TESTING
          $rateij = exp( $ddmu ) * $kzero * exp( -( $ebar - $energy_a ) ); # simple Arrhenius rate * ligand conc
-
       }
       else { # distance not 1, so rate is zero
          $rateij = 0.0;
@@ -957,6 +1087,7 @@ open(KFILE, "> $kfile");
 for ( $i=0; $i<@states; $i++ ) {
    for ( $j=0; $j<@states; $j++ ) {
       printf KFILE "%8.4e  ", $rates[$i][$j];
+      #printf DEBUG "%8.4e  ", $rates[$i][$j];
    }
    print KFILE "\n\n";
 }
@@ -992,13 +1123,14 @@ for ( $i=0; $i<$nstates; $i++ ) { # run through original indices
 }
 
 # Calculate MC energy score for trial perturbation check accept/reject
-if ( $n>0 ) { # record old values
+if ( $n>0 && $not_mc !=1) { # record old values
    $emc_old = $emc;
 }
 @energy_info = mc_energy ();
 $emc =  $energy_info[0];
 ( $sflow, $wflow, $nflow ) = ( $energy_info[1], $energy_info[2], $energy_info[3] );
-if ( $n==0 ) {
+print ADATA "$dmu_now   $nflow  $sflow  $wflow\n";
+if ( $n==0 && $not_mc!=1) {
    $emc_old = $emc; $n_accept = 0;
    # Output data for analysis
    print DATA "# n_mc   mc_energy   ";
@@ -1014,7 +1146,7 @@ if ( $n==0 ) {
    print DATA "\n";
    print FLOWS "\n";
 }
-if ( $n>0 ) { # check if move accepted
+if ( $n>0 && $not_mc!=1 ) { # check if move accepted
    if ( $n%$n_beta==1 ) {  # routine to adjust beta values
       if ( $n==1 ) {
          $ebeta_old = $emc; # ebeta_old is emc at prior beta check point
@@ -1067,6 +1199,7 @@ if ( $n>0 ) { # check if move accepted
 
 }
 
+$mc_change = 1;
 # print rates etc to file for plotting/analysis
 $omit_this = 1;
 %branches = ();
@@ -1133,21 +1266,46 @@ if ( $n==0 || $mc_change==1 ) { # save flows for accepted moves
    }
 }
 # print flows among physical ('alt') states (based on last accepted move)
+if ($nflow_save !=0){
+  $s_to_n = sprintf("%.3g", abs($sflow_save/$nflow_save)); #use absolute value of ratio to remove sign
+} else {
+  $s_to_n = 0;
+}
+if ($wflow_save !=0){
+  $s_to_w = sprintf("%.3g", abs($sflow_save/$wflow_save));
+} else {
+  $s_to_w = 0;
+}
+
+$emc_round = sprintf("%.4g", $emc);
+$sflow_round = sprintf("%.4g", $sflow_save);
+$wflow_round = sprintf("%.4g", $wflow_save);
+$nflow_round = sprintf("%.4g", $nflow_save);
+
 if ( $n%$dprint==0 ) {
+   $pathways_file = "flux_n$n.csv";
+   open(PATHWAYS, "> $pathways_file") or die;
+   print PATHWAYS "$analysis  dmu_now=$dmu_now dmu_N=$dmu_N dmu_S=$dmu_S dmu_W=$dmu_W dg_sw=$dg_SW alpha=$alpha seed=$seed proof=$proof energy_model=$efile_init, emc = $emc_round S_flow = $sflow_round W_flow = $wflow_round N_flow = $nflow_round |S:N| = $s_to_n |S:W| = $s_to_w, 0.0 \n";
    print LOG "\nn = $n (Monte Carlo step number)      emc = $emc\n";
+   #print PATHWAYS "\nn = $n (Monte Carlo step number)      emc = $emc\n";
    print LOG "S flow = $sflow_save    W flow = $wflow_save    N flow = $nflow_save\n";
+   #print PATHWAYS "S flow = $sflow_save    W flow = $wflow_save    N flow = $nflow_save\n";
    for ( $i=0; $i<@alt_states; $i++ ) {
       $a_name = $alt_states[$i];
       print LOG "\nOVERALL PHYSICAL FLOWS FROM STATE $a_name ...\n";
+      #print PATHWAYS "\nOVERALL PHYSICAL FLOWS FROM STATE $a_name ...\n";
       for ( $j=0; $j<@alt_states; $j++ ) {
          if ( $alt_rates[$i][$j] > 0 ) {
             $b_name = $alt_states[$j];
             $transn = $a_name . "_TO_" . $b_name;
             printf LOG "   %s    Net flow = %6.2e\n",  $transn, $netflow_save[$i][$j];
+            printf PATHWAYS "$a_name,$b_name,$netflow_save[$i][$j] \n";
          } # end of if edges loop
       } # end of first j loop
       print LOG "\n";
+      print PATHWAYS "\n";
    }
+close(PATHWAYS) or die;
 }
 
 # Output model (state and barrier energies) for future use
@@ -1169,11 +1327,9 @@ if ( $n%$dprint==0 ) {
    foreach $transn (@barkeys) {
       print BARRIER "$transn    $ebars{$transn}\n";
       if (exists $ebars{$transn}){ #testing with ebar values instead of ebars
-        #print BARRIER "$transn    $ebar_hash{$transn}\n";
         print DEBUG "$transn    $ebar_hash{$transn}\n";
       }
 
-      #print BARRIER "$transn    $ebar{$transn}\n"; #testing
    }
    close(ENERGY);
    close(BARRIER);
@@ -1182,29 +1338,25 @@ if ( $n%$dprint==0 ) {
 #print_energies($connected_transitions, "transitions");
 unit_test_negative_energy($connected_transitions, "transitions");
 
-#make graph of mc energy in 10% increments, if graphing is turned on
-if ( $n>0 && ( $n % ( $nsteps * 0.10) == 0) && ($graph == 1) ){
-  plot_mc_energies($datfile); #plots a graph of mc e vs n step
-}
-
 
 } # End of Monte Carlo loop
 close(MCFILE);
 close(DATA);
 close(FLOWS);
 close(DEBUG);
-$end_time = calc_wall_clock($start_time);
-print LOG "Script runtime (s): $end_time for $nsteps steps \n";
+close(ADATA);
 
-close(LOG);
-#automation diasbled for now
-
-#print LOG "Running find min python script...\n";
-#if ( $autobot == 1){ #run automation pipeline
-#  system("python $find_min_script $alpha $seed $nsteps $analysis_type");
+#automation currently disabled
+#if ( $autobot == 1 && $not_mc != 1){ #run automation pipeline
+  #print LOG "Running find min python script...\n";
+  #system("python $find_min_script $alpha $seed $nsteps $analysis_type");
 #}
 
-#move datalog to new folder
+if ($graph == 1){
+  call_python_pathway_grapher($pathway_grapher);
+  graph_flows($analysis_file);
+}
+
 
 
 #################################################################################
@@ -1428,6 +1580,7 @@ sub mc_energy {
       print LOG "\nmc_energy: S flow = $sflow    W flow = $wflow    N flow = $nflow (for current trial)\n\n";
    }
    else {
+
      if ($energy_function eq "symporter"){
        $emc = -$sflow; #symporter
      }
@@ -1777,8 +1930,6 @@ sub initial_model {
           $connected_transitions_deref{$key}{$key_in_key} = $ebump;
           $ebars{$key_in_key} = $ebump;
       }
-      #print transitions and barriers for initial model...
-
     }
   }
 
@@ -1796,9 +1947,13 @@ sub adjust_tied_barriers2 { # takes in perturbed_state, connected_states_ref, an
   foreach $key (keys %connected_barriers_deref){
     foreach $key_in_key (keys %{$connected_barriers_deref{$key}}){
       if ($key_in_key eq $perturbed_barrier){
+          #print LOG "found perturbed_state! = $key_in_key\n";
           foreach $key_in_key (keys %{$connected_barriers_deref{$key}}){
+            print "$connected_barriers_deref{$key}{$key_in_key} + $barrier_energy_value = ";
             $connected_barriers_deref{$key}{$key_in_key} = $connected_barriers_deref{$key}{$key_in_key} + $barrier_energy_value;
+            print "$connected_barriers_deref{$key}{$key_in_key}";
             $ebars{$key_in_key} = $connected_barriers_deref{$key}{$key_in_key};
+            #print LOG "state $key_in_key energy set from $previous_energy to $new_energy\n";
           }
       }
     }
@@ -1811,6 +1966,8 @@ sub adjust_tied_energies2 { # takes in perturbed_state, connected_states_ref, an
   my $state_energy_value = $_[2];
   my %connected_states_deref = %{$connected_states_ref};
   print LOG "perturbed_state: $perturbed_state \n";
+  #search for connected subgraph of perturbed state
+  #search 1st level for match
   foreach $key (keys %connected_states_deref){
     foreach $key_in_key (keys %{$connected_states_deref{$key}}){
       if ($key_in_key eq $perturbed_state){
@@ -1827,14 +1984,14 @@ sub load_config_settings {
   my $config_file = $_[0]; #load config file
   print "using config file: $config_file\n";
   my %default_parameters = (   # default parameter values
-    proof => 0,#proofreading is turned off by default
+    proof => 0, #prof reading turned off by default
     na_first => 0,
-    nsteps => 1e4,
-    dprint => 1e0,
+    nsteps => 1e2,
+    dprint => 1e1,
     n_beta => 2e2,
     seed => 456789,
     demax => 1.0,
-    alpha => 0.0,
+    alpha => 0,
     beta_init => 1e1,
     fbeta => 1e3,
     tol => 0.3,
@@ -1855,12 +2012,20 @@ sub load_config_settings {
     flowfile => "evolver_flows.dat",
     debugfile => "debug",
     logfile => "logfile",
-    directory => "RUN_1",
-    autobot => "0", #for automation, currently disabled
+    directory => "ANAYLSIS_n1",
+    autobot => "0",#currently disabled
+    analysis_type => "vary_dmu_N",
     dg_sw => 0,
     Sb_Wb_tied => 0,
+    efile_init => "energies-1",
+    bfile_init => "barriers-1",
+    analysis => "vary_dmu_N",
     energy_function => "symporter",
-    graph => 1,
+    graph => 0,
+    manually_adjust => 0,
+    adjust_barrier => "",
+    adjust_state => "",  # not using
+    energy_adjustment => 0,
   );
   my @required_parameters = ( # Required paramters to be in config file
     "proof", "na_first", # Simulation Parameters
@@ -1868,16 +2033,21 @@ sub load_config_settings {
     "dmu_N","dmu_S","dmu_W","fmu_N","fmu_S","fmu_W","ebarslow","kzero","ebump", # Physical Parameters
     "tmpfile", "mcfile", "kfile", "datfile", "flowfile", "debugfile", "logfile", # output files
     "directory", #new directory for run
-    "autobot", #turn on/off automation pipeline (currently disabled)
+    "autobot", #turn on/off automation pipeline, currently disabled
+    "analysis_type", #which type of analysis (vary dmu n,s, or w)
     "dg_sw", # set dg_sw (different binding energy of W to S)
     "Sb_Wb_tied", # controls how "tied together Sb and Wb are"
+    "efile_init", #energy file
+    "bfile_init", #barrier file
+    "analysis", #which type of analysis (vary dmu n,s,w)
     "energy_function", #which energy function to use (i.e. for symport or antiport)
-    "graph", #graphs mc energy automatically
+    "graph", #turn on/off graphing of flows
+    "manually_adjust", "adjust_barrier","adjust_state","energy_adjustment",  # parameters for manual adjustments of state/barrier energy
   );
   my %config;
   Config::Simple->import_from( $config_file, \%config);
-  for (@required_parameters ) {  # Verify
-    print "Parameter '$_' is missing from config. Using default value = $default_parameters{$_}\n" unless exists $config{$_};
+  for $param (@required_parameters ) {  # Verify
+    print "Parameter '$param' is missing from config. Using default value = $default_parameters{$param}\n" unless exists $config{$param};
   }
   my %settings = (%default_parameters, %config );
   #print LOG "settings: \n". Dumper(%settings)."\n";
@@ -2052,36 +2222,245 @@ sub set_reference_state {
   return @reference_connected_list;
 }
 
-#plots mc_energies using chart::gnuplot module
-sub plot_mc_energies {
+sub unit_test_compare_energies2 {
+  my $dictionarya_ref = $_[0];
+  my $dictionaryb_ref = $_[1];
+  my %dictionarya_deref = %{$dictionarya_ref};
+  my %dictionaryb_deref = %{$dictionaryb_ref};
+  my $test_fail_flag = 0;
+  my $tolerance = 0.0000001;
 
-  my $sub_datafile = $_[0];#evolver_rates.dat by default
-  #my $current_time = calc_wall_clock($start_time);
+  foreach $key (keys %dictionarya_deref){
+    if ( abs( ($dictionaryb_deref{$key}- $dictionarya_deref{$key}) > $tolerance ) ){
+      $test_fail_flag = 1;
+      print LOG "COMPARE ENERGIES TEST FAILED! \n";
+      print LOG "key = $key\n";
+      print LOG "|$dictionaryb_deref{$key}- $dictionarya_deref{$key}|  > $tolerance \n";
+    }
+  }
+  if ($test_fail_flag == 1){
+    print LOG "Failed unit test. Energies have changed from inputted values. Exiting program.\n";
+    Win32::MsgBox("Failed unit test. Energies have changed from inputted values. Exiting program.");
+    exit;
+  } else {
+    print LOG "Passed unit test. Continuing program. \n";
+  }
 
-  #make a new chart. note that gnuplot path needs to be specified in Windows
-  my $chart = Chart::Gnuplot->new(
-    output => "mc_energy_trajectory.png",
-    gnuplot => "C:\\Program Files\\gnuplot\\bin\\gnuplot.exe",
-    terminal => 'png',
-    title  => "MC Energy Trajectory",
-    timestamp => "on",
-    xlabel => "n step",
-    ylabel => "MC Energy",
-  );
-  #data set to be plotted
-  my $data_set = Chart::Gnuplot::DataSet->new(
-      datafile => "$sub_datafile",
-      style => "lines",
-  );
-
-  # Plot the graph
-  $chart->plot2d($data_set);
 }
+
+sub call_python_pathway_grapher {
+$pathway_grapher_filename = $_[0];
+system("python $pathway_grapher_filename > pathway_graphing_log");
+}
+
+#graphs the flows
+
+sub graph_flows {
+
+  my $sub_datafile = $_[0]; # aka $analysis file
+  my (@x,@y1,@y2,@y3,@y4,@y5) = (); #arrays to store data from data file
+
+  #read in data file
+  open(DFILE, "< $sub_datafile") or die "Error! Cannot open $sub_datafile";
+  my @lines_of_data= <DFILE>;
+  close( DFILE );
+
+  #load each space value into a seperate array
+  foreach $line ( @lines_of_data) {
+    next if ( $line =~ /^\s*#/ ); #skip if a # comment
+
+    ($dmu_x, $flow_N, $flow_S, $flow_W) = split( /\s+/, $line ); # parse through data
+    push(@x, $dmu_x ); #push data to array
+    push(@y1, $flow_N); #to graph absolute flow
+    push(@y2, $flow_S);
+    push(@y3, $flow_W);
+    if ($flow_W != 0){ # don't divide by zero when proofreading is turned off
+      push(@y4, ($flow_S/$flow_W)); # to graph flow ratios
+    } else { push(@y4, 0.0); }
+    push(@y5, ($flow_S/$flow_N));
+  }
+
+
+  #data sets to be plotted (chart::gnuplot cannot do multiple datasets per file)
+  my $data_set1 = Chart::Gnuplot::DataSet->new(
+    xdata => \@x,
+    ydata => \@y1,
+    style => "lines",
+    title => "N flow",
+    color => "#000000",
+    width => "3",
+  );
+
+  my $data_set2 = Chart::Gnuplot::DataSet->new(
+    xdata => \@x,
+    ydata => \@y2,
+    style => "lines",
+    title => "S flow",
+    color => "#009933",
+    width => "3",
+  );
+
+  my $data_set3 = Chart::Gnuplot::DataSet->new(
+    xdata => \@x,
+    ydata => \@y3,
+    style => "lines",
+    title => "W flow",
+    color => "#cc0000",
+    width => "3",
+  );
+
+  my $data_set4 = Chart::Gnuplot::DataSet->new(
+    xdata => \@x,
+    ydata => \@y4,
+    style => "lines",
+    title => "S:W",
+    color => "#009933",
+    width => "3",
+  );
+
+  my $data_set5 = Chart::Gnuplot::DataSet->new(
+    xdata => \@x,
+    ydata => \@y5,
+    style => "lines",
+    title => "S:N",
+    color => "#000000",
+    width => "3",
+  );
+
+
+  #find which analysis type it is and then label accordingly
+  #need to fix stlye! Don't Repeat Yourself!
+  #multiplot wasn't working so make two seperate images
+  if ($sub_datafile =~ m/dmu_N/){
+    #make a new chart. note that gnuplot path needs to be specified in Windows
+      $left = Chart::Gnuplot->new(
+        output => "absolute_flows.png",
+        gnuplot => "C:\\Program Files\\gnuplot\\bin\\gnuplot.exe",
+        terminal => 'png',
+        title  => "Absolute Flows: Varying dMu N",
+        timestamp => "on",
+        xlabel => "dMu N",
+        ylabel => "Flow",
+      );
+      $right = Chart::Gnuplot->new(
+        output => "relative_flows.png",
+        gnuplot => "C:\\Program Files\\gnuplot\\bin\\gnuplot.exe",
+        terminal => 'png',
+        title  => "Relative Flows: Varying dMu N",
+        timestamp => "on",
+        xlabel => "dMu N",
+        ylabel => "Flow",
+      );
+  } elsif($sub_datafile =~ m/dmu_S/) {
+    #make a new chart. note that gnuplot path needs to be specified in Windows
+      $left= Chart::Gnuplot->new(
+        output => "absolute_flows.png",
+        gnuplot => "C:\\Program Files\\gnuplot\\bin\\gnuplot.exe",
+        terminal => 'png',
+        title  => "Absolute Flows: Varying dMu S",
+        timestamp => "on",
+        xlabel => "dMu S",
+        ylabel => "Flow",
+        );
+      $right = Chart::Gnuplot->new(
+        output => "relative_flows.png",
+        gnuplot => "C:\\Program Files\\gnuplot\\bin\\gnuplot.exe",
+        terminal => 'png',
+        title  => "Relative Flows: Varying dMu S",
+        timestamp => "on",
+        xlabel => "dMu S",
+        ylabel => "Flow",
+        );
+  } elsif($sub_datafile =~ m/dmu_W/) {
+    #make a new chart. note that gnuplot path needs to be specified in Windows
+      $left = Chart::Gnuplot->new(
+        output => "absolute_flows.png",
+        gnuplot => "C:\\Program Files\\gnuplot\\bin\\gnuplot.exe",
+        terminal => 'png',
+        title  => "Absolute Flows: Varying dMu W",
+        timestamp => "on",
+        xlabel => "dMu W",
+        ylabel => "Flow",
+      );
+      $right = Chart::Gnuplot->new(
+        output => "relative_flows.png",
+        gnuplot => "C:\\Program Files\\gnuplot\\bin\\gnuplot.exe",
+        terminal => 'png',
+        title  => "Relative Flows: Varying dMu W",
+        timestamp => "on",
+        xlabel => "dMu W",
+        ylabel => "Flow",
+      );
+  } else {
+      $left = Chart::Gnuplot->new(
+        output => "absolute_flows.png",
+        gnuplot => "C:\\Program Files\\gnuplot\\bin\\gnuplot.exe",
+        terminal => 'png',
+        title  => "Absolute Flows",
+        timestamp => "on",
+        xlabel => "dMu",
+        ylabel => "Flow",
+      );
+      $right = Chart::Gnuplot->new(
+        output => "relative_flows.png",
+        gnuplot => "C:\\Program Files\\gnuplot\\bin\\gnuplot.exe",
+        terminal => 'png',
+        title  => "RelativeFlows",
+        timestamp => "on",
+        xlabel => "dMu",
+        ylabel => "Flow",
+      );
+  }
+
+$left->plot2d($data_set1,$data_set2,$data_set3);
+$right->plot2d($data_set4,$data_set5);
+
+}
+
+sub adjust_states_to_model{
+
+  my $energy_dictionary_ref = $_[0];
+  my %energy_dictionary_deref = %{$energy_dictionary_ref};
+
+  print DEBUG "Adjusting state energies for model...\n\n";
+
+  foreach $key (keys %energy_dictionary_deref){
+     print DEBUG "key = $key\n";
+     foreach $key_in_key (keys %{$energy_dictionary_deref{$key}}){
+         print DEBUG "key = $key_in_key value = $energy_dictionary_deref{$key}{$key_in_key} \n";
+         print DEBUG "key = $key_in_key energies{$key_in_key} = $energies{$key_in_key} \n";
+         $energy_dictionary_deref{$key}{$key_in_key} = $energies{$key_in_key};
+         print DEBUG "key = $key_in_key value2 = $energy_dictionary_deref{$key}{$key_in_key} \n";
+     }
+     print DEBUG "\n";
+  }
+  print LOG "\n";
+}
+
+sub adjust_barriers_to_model{
+
+    my $energy_dictionary_ref = $_[0];
+    my %energy_dictionary_deref = %{$energy_dictionary_ref};
+
+    print DEBUG "Adjusting barrier energies for model...\n\n";
+
+    foreach $key (keys %energy_dictionary_deref){
+       print DEBUG "key = $key\n";
+       foreach $key_in_key (keys %{$energy_dictionary_deref{$key}}){
+           print DEBUG "key = $key_in_key value = $energy_dictionary_deref{$key}{$key_in_key} \n";
+           print DEBUG "key = $key_in_key ebars{$key_in_key} = $ebars{$key_in_key} \n";
+           $energy_dictionary_deref{$key}{$key_in_key} = $ebars{$key_in_key};
+           print DEBUG "key = $key_in_key value2 = $energy_dictionary_deref{$key}{$key_in_key} \n";
+       }
+       print DEBUG "\n";
+    }
+    print LOG "\n";
+}
+
 
 # Caculates and prints script runtime in seconds
-sub calc_wall_clock {
-  my $start_time = $_[0];
-  my $end_time = time();
-  my $run_time = $end_time - $start_time;
-  return $run_time;
-}
+my $end_time = time();
+print LOG "\n\n end time: $end_time \n\n";
+my $run_time = $end_time - $start_time;
+print LOG "Script runtime (s): $run_time for MC n = $nsteps \n";
+close(LOG);
