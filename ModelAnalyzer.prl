@@ -129,10 +129,10 @@ unless(-e $directory or mkdir $directory) { #make directory if directory does no
         die "Unable to create $directory\n";
     }
 
-my $pythonfile = "python_graph_script.py";
+my $pythonfile = "cycle_checker.py";
 my $analyze_script = "analyze-model.prl";
 #my $find_min_script = "find_min.py"; #automation currently disabled
-my $pathway_grapher = "graph_pathways.py";
+my $pathway_grapher = "flux_grapher.py";
 my $analysis_file = "analysis-" . $analysis . "-dmu_init__$dmu_init" . "__to__" . "dmu_fin__$dmu_fin";
 
 my $pythonfilenew = $directory."\/".$pythonfile;
@@ -883,7 +883,7 @@ foreach $transn (@barkeys) {
    #$old_barriers{$transn} = $barrier_0;
    print LOG "$transn    $barrier_0\n";
  }
-
+  $barrier_max = 10;
 
 ################################################################
 for ( $n=0; $n<=$nsteps; $n++ ) { # MONTE CARLO LOOP
@@ -944,18 +944,17 @@ if ( $n>0 && $not_mc !=1) {
 
    # choose random state or transition-state energy to perturb
    if ( rand() < 0.5 ) { # trial move is perturbation to state energy
-      #print_energies($old_connected_states, "old states");
       $state_move = 1;  # 1 for changing state, 0 for changing barrier
       $state_ok = 0; # flag for whether chosen state is in fixed list and should be excluded
       while ( $state_ok==0 ) {
          $nrand = floor(rand()*$nstates); # random element of states array
          #print MCFILE "nstates = $nstates   nrand = $nrand\n";
          $tmpstate = $states[$nrand][0];
-         if ( (grep { $tmpstate eq $_ } @reference_states) ){#debugging;
+         if ( (grep { $tmpstate eq $_ } @reference_states) ){#debugging
          }
          if ( (grep { $tmpstate eq $_ } keys %fixed_states) ){#debugging
          }
-         unless ( (grep { $tmpstate eq $_ } keys %fixed_states)  || ((grep { $tmpstate eq $_ } @reference_states))  ) { $state_ok = 1; } # don't change ref state energy
+         unless ( (grep { $tmpstate eq $_ } keys %fixed_states)  || ((grep { $tmpstate eq $_ } @reference_states))  ) { $state_ok = 1; }
          #print MCFILE "MC: chosen state $tmpstate    state_ok = $state_ok\n";
       }
       $delta_e = 2.0*$demax*( rand() - 0.5 ); # amount by which energy of state to be perturbed
@@ -977,16 +976,18 @@ if ( $n>0 && $not_mc !=1) {
       $new_energy = $old_energy + $delta_e;
       if ( grep { $bartmp eq $_ } @slowpairs ) {
          print MCFILE "... CHANGING A SLOW TRANSN STATE\n";
-         if ( $new_energy < $ebarslow ) {
+         if ( $new_energy < $ebarslow ) {  # slow transition -> make large barrier
            $new_energy = $ebarslow;
            $delta_e = $ebarslow-$old_energy;
          } #change delta e such that old energy + delta = ebar slow
        } elsif ( $new_energy < 0.0 ) { #fix this?
-            $new_energy = 0.0;
-            $delta_e = 0.0;
-      } #change delta e such that old energy + delta = 0
-         # equivalent to setting minimum rate to be kzero
-
+            $new_energy = 0.0; # equivalent to setting minimum rate to be kzero
+            $delta_e = 0.0;  #change delta e such that old energy + delta = 0
+      } elsif ( $new_energy > $barrier_max ) {
+             #print "barrier energy $bartmp set too high: $new_energy. Setting to max: $barrier_max.\n";
+             #warn "barrier energy $bartmp set too high: $new_energy. Setting to max: $barrier_max.\n";
+             $new_energy = $barrier_max; # barrier is capped to maximum
+           }
       $ebars{$bartmp} = $old_energy + $delta_e;
       print MCFILE "Perturb transition state $bartmp by delta_e=$delta_e from $old_energy to (non-negative) $new_energy\n";
       adjust_tied_barriers2( $bartmp, $connected_transitions, $delta_e);
@@ -1552,6 +1553,7 @@ sub mc_energy {
    my $a; my $b; my $emc = 0.0;
    my $fflow; my $bflow;
    my $sflow = 0.0; my $wflow = 0.0; my $nflow = 0.0;
+   my $epsilon = 1e-15;
    foreach $pair ( @s_edges ) {
       $a = $$pair[0]; $b = $$pair[1];
       $fflow = flow( $a, $b );  $bflow = flow( $b, $a);
@@ -1572,10 +1574,12 @@ sub mc_energy {
          $wflow +=  $fflow - $bflow; # negative net substrate transport targets more transport
       }
       if ($energy_function eq "symporter"){
-        $emc = -$sflow*( abs($sflow/$wflow) )**$alpha; #symporter
+
+        $emc = -$sflow*( (abs($sflow)+$epsilon)/(abs($wflow)+$epsilon) )**$alpha; #symporter
+        print LOG "$emc = -$sflow*( (abs($sflow)+$epsilon)/(abs($wflow)+$epsilon) )**$alpha\n";
       }
       elsif ($energy_function eq 'antiporter'){
-        $emc = $sflow*( abs($sflow/$wflow) )**$alpha; #antiporter
+        $emc = $sflow*( (abs($sflow)+$epsilon)/(abs($wflow)+$epsilon) )**$alpha; #symporter #antiporter
       } else {$emc = -$sflow;}
       print LOG "\nmc_energy: S flow = $sflow    W flow = $wflow    N flow = $nflow (for current trial)\n\n";
    }
