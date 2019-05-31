@@ -11,6 +11,9 @@ use Cwd qw(chdir);
 use Storable qw(dclone);
 use Win32; # for error popup dialog
 use Chart::Gnuplot;
+use Try::Tiny;
+#use Math::MatrixReal;
+
 #use strict; #errors out
 
 # Monte Carlo program to explore 'model space' by using steady-state transport
@@ -45,7 +48,7 @@ use Chart::Gnuplot;
 # Add unit tests (In Progress)
 
 # UNIT TESTS TO ADD:
-# (1) Sum of steady state probabilities is one
+# (1) Sum of steady state probabilities is one (DONE)
 # (2) Ratio of rates for a state pair give Boltz fac of energy difference
 # (3) Energy differences among tied states match constraints
 # (4) Energies of fixed states remain at constrained values
@@ -70,8 +73,15 @@ $n_beta = $parameters{"n_beta"}; # number of MC steps after which beta (inverse 
 $seed = $parameters{"seed"}; # seed for random number generator
 $demax = $parameters{"demax"}; # maximum change in energy of state or transition state
 $alpha = $parameters{"alpha"}; # exponent for toxin flow in MC 'energy' function which sets fitness of model
-$beta_init = $parameters{"beta_init"}; # initial value of beta = inverse temperature
-$fbeta = $parameters{"fbeta"}; # max factor by which beta can change during the MC run, which includes 'tempering'
+$temp_scale = $parameters{"temp_scale"}; # scaling factor for tempering schedule (>1 stretches, <1 shrinks)
+
+#$beta_init = $parameters{"beta_init"}; # initial value of beta = inverse temperature
+#$beta = $beta_init;
+$b_min= $parameters{"b_min"}; #
+$beta = $b_min;
+$b_max= $parameters{"b_max"}; #
+#$b_steps = $parameters{"b_steps"}; #
+#$fbeta = $parameters{"fbeta"}; # max factor by which beta can change during the MC run, which includes 'tempering'
 $tol = $parameters{"tol"}; # fractional energy change deemed significant in tempering
 $pbeta_stay = $parameters{"pbeta_stay"}; # probability to stay at same beta during tempering
 $dmu_N = $parameters{"dmu_N"}; # chemical potential change (mu_i - mu_o) of driving "ion" N (e.g., sodium)
@@ -101,14 +111,15 @@ $Sb_Wb_tied = $parameters{"Sb_Wb_tied"}; #controls how "tied" Sb and Wb barriers
 #... 2: Transition w/ Sb state = Transition w/ Wb state (i.e. OF-Sb->IF-Sb = OF-Wb->IF-Wb), ...
 #... 3: both 1 and 2
 $energy_function = $parameters{"energy_function"};
-$graph = $parameters{"graph"}; #turns on MC trajectory graphing
+
+#$graph = $parameters{"graph"}; #turns on MC trajectory graphing
 if ( $proof!=1 ) { #if proof reading is turned off, there is no 'W'
   $Sb_Wb_tied =0;
   $dg_SW = 0;
 }
 
 srand($seed); # initializes random number generator ... should make MC repeatable
-
+#$dfactor = 1e0; #$nsteps/100; #testing, don't make energy files for every n value...
 #create new directory for this run to store files
 unless(-e $directory or mkdir $directory) { #make directory if directory does not already exist
         die "Unable to create $directory\n";
@@ -116,10 +127,11 @@ unless(-e $directory or mkdir $directory) { #make directory if directory does no
 
 
 
-my $pythonfile = "python_graph_script.py"; #creates equivalient states/transitions
+my $pythonfile = "cycle_checker.py"; #creates equivalient states/transitions
 my $analyze_script = "ModelAnalyzer.prl"; #analyzers by sweeping dmu
 my $analysis_config = "analysis_config.txt"; #configures analysis
-my $python_analysis = "graph_pathways.py"; #loads and creates pathway graphs
+my $python_analysis = "flux_grapher.py"; #loads and creates pathway graphs
+my $clusterfile = "cluster_data.dat";
 #my $find_min_script = "find_min.py"; #automation diasbled for now
 
 #new directory location
@@ -148,13 +160,18 @@ open(MCFILE, "> $mcfile") or die "Error! Cannot open $mcfile";
 open(DATA, "> $datfile") or die "Error! Cannot open $datfile";
 open(FLOWS, "> $flowfile") or die "Error! Cannot open $flowfile";
 open(DEBUG, "> $debugfile") or die "Error! Cannot open $debugfile";
+open(CLUSTER, "> $clusterfile") or die "Error! Cannot open $debugfile";
+open(BETA, "> beta.dat") or die "Error! Cannot open beta file";
+open(BETAG, "> beta2.dat") or die "Error! Cannot open beta2 file";
 
 
 # Simulation Configuration print out
 print LOG "Simulation type: proof = $proof  na_first = $na_first Sb_Wb_tied = $Sb_Wb_tied energy_function = $energy_function\n";
-print LOG "MC Protocol: Now using flow sflow* |sflow/wflow|**alpha\n";
+print LOG "MC Protocol: Now using flow sflow* |sflow| + epsilon / |wflow| + epsilon **alpha\n";
 print LOG "MC Parameters: $nsteps steps    seed = $seed    demax = $demax    alpha = $alpha\n";
-printf LOG "MC Parameters: beta_init = %4.1e    max beta factor = %4.1e    adjusts every %d MC steps\n\n", $beta_init, $fbeta, $n_beta;
+#printf LOG "MC Parameters: beta_init (b_min) = %4.1e    max beta factor (not used) = %4.1e    adjusts every %d MC steps\n\n", $b_min, $fbeta, $n_beta;
+print LOG "MC Parameters: adjust beta every $n_beta steps\n";
+printf LOG "MC Parameters: b_min = $b_min   b_max = $b_max  n\n";
 print LOG "MC Parameters: pbeta_stay = $pbeta_stay    tol = $tol\n";
 #printf LOG "MC Parameters: beta_early = %4.1e    beta_late = %4.1e   alternates every %d MC steps\n\n", $beta_early, $beta_late, $n_beta;
 print LOG "Physical params: dmu_N = $dmu_N    dmu_S = $dmu_S    dmu_W = $dmu_W    ebarslow = $ebarslow    kzero = $kzero    ebump = $ebump";
@@ -441,7 +458,6 @@ for ( $i=0; $i<$nstates; $i++ ) {
          if ( $nchange==1 ) { #Note: $nchange is used to see if two states are equivalent (for binding of the other other species)
          ### (i.e. for OF: NoSiWo->NoSbWo->NoSoWo differs by one "equivalent" unit Ni/No, No/Ni from NiSiWo->NiSbWo->NiSoWo)
             push @tied_states_tr, [ $aname, $bname ]; #tied transition state if nchange is 1
-
          }
       }
    }
@@ -752,7 +768,7 @@ if ($proof==1){
   @reference_states = set_reference_state($connected_states,"OF-No-So");
 }
 
-print DEBUG "reference_states\n".Dumper(@reference_states);
+#print DEBUG "reference_states\n".Dumper(@reference_states);
 # Put the same info into more useful hashes
 ( $ref_one, $ref_two ) = equiv_hashes_from_list ( \@equiv_lists_tr );
 %equiv_tr = %{ $ref_one }; # indicates which key a given transn is referenced to
@@ -796,407 +812,598 @@ if ( $proof==1 ) {
   print LOG "\n";
 }
 
+  #$barrier_max = 80.0;
+  ### beta parameter configuration
+  $b_step_low = $temp_scale * 125;  # high T
+  $b_step_high = $temp_scale * 1450;  # low T
+  $b_step_inc = $temp_scale * 100;  # dec T
+  $b_step_dec = $temp_scale * 325;  # inc T
+  $beta_step_1 = $b_step_low;
+  $beta_step_2 = $b_step_low + $b_step_inc;
+  $beta_step_3 = $b_step_low + $b_step_inc + $b_step_high;
+  $beta_step_4 = $b_step_low + $b_step_inc + $b_step_high + $b_step_dec;
+  $beta_increment = ($b_max/$b_min) ** (1/($b_step_inc));  # how much to increase beta
+  $beta_decrement = ($b_max/$b_min) ** (1/($b_step_dec));  # how much to increase beta
+  print LOG "b step low: $b_step_low b step high: $b_step_high  b step inc:$b_step_inc  b step dec:$b_step_dec \n";
+  print LOG "bmax: $b_max  bmin: $b_min \n";
+  print LOG "increment (*) beta by: $beta_increment\n";
+  print LOG "decrement (*) beta by: $beta_decrement\n";
+
+  print BETA "n, emc, beta, delta e, phase, status, ratio, exp(-beta*delta e)\n";
+  my $phase = "initial";
+
+  open(my $fh_d, ">", "matrix_and_soln.dat") or die "Error! Cannot open file";
 
 ################################################################
 for ( $n=0; $n<=$nsteps; $n++ ) { # MONTE CARLO LOOP
 ################################################################
+    if ( $n%$dprint==0 ) {
+      $duration = time() - $start_time;
+      warn "M.C. n = $n. Duration (s) = $duration\n ";
+    }
 
-print MCFILE "\nMonte Carlo loop: n = $n\n\n";
-print LOG "\nMonte Carlo loop: n = $n\n\n";
-print DEBUG "\nMonte Carlo loop: n = $n\n\n";
+  #print $fh_d "test $n\n";
+  print MCFILE "\nMonte Carlo loop: n = $n\n\n";
+  print LOG "\nMonte Carlo loop: n = $n\n\n";
+  #print DEBUG "\n\nMonte Carlo loop: n = $n\n\n";
 
-#to compare energies before/after
-$old_connected_states = dclone $connected_states;
-$old_connected_transitions = dclone $connected_transitions;
-
-
-## Trial move
-if ( $n>0 ) {
-
-   # choose random state or transition-state energy to perturb
-   if ( rand() < 0.5 ) { # trial move is perturbation to state energy
-      $state_move = 1;  # 1 for changing state, 0 for changing barrier
-      $state_ok = 0; # flag for whether chosen state is in fixed list and should be excluded
-      while ( $state_ok==0 ) {
-         $nrand = floor(rand()*$nstates); # random element of states array
-         #print MCFILE "nstates = $nstates   nrand = $nrand\n";
-         $tmpstate = $states[$nrand][0];
-         if ( (grep { $tmpstate eq $_ } @reference_states) ){#debugging
-         }
-         if ( (grep { $tmpstate eq $_ } keys %fixed_states) ){#debugging
-         }
-         unless ( (grep { $tmpstate eq $_ } keys %fixed_states)  || ((grep { $tmpstate eq $_ } @reference_states))  ) { $state_ok = 1; }
-         #print MCFILE "MC: chosen state $tmpstate    state_ok = $state_ok\n";
-      }
-      $delta_e = 2.0*$demax*( rand() - 0.5 ); # amount by which energy of state to be perturbed
-      $old_energy = $energies{$tmpstate}; # keep track of perturbed state's energy
-      $new_energy = $old_energy + $delta_e; # perturb energy
-      $energies{$tmpstate} = $new_energy; # set state's energy to new energy
-      print MCFILE "Perturb state $tmpstate by delta_e=$delta_e from $old_energy to $new_energy\n";
-      adjust_tied_energies2( $tmpstate, $connected_states, $delta_e); #use delta_e because some states in equivalent group have different energies, can't set them all to new energy
-      unit_test_tied_energy_difference($old_connected_states, $connected_states, "states" );
-   }
-   else { # trial move is perturbation to transition-state (energy barrier) energy
-      $state_move = 0;
-      $nbars = keys %ebars;
-      $nrand = floor(rand()*$nbars); # random element of transition states array
-      $bartmp = $barkeys[$nrand]; # name of transition state to be perturbed
-      print MCFILE "Perturb transition state $nrand = $bartmp  with  ebar = $ebars{$bartmp}\n";
-      $delta_e = 2.0*$demax*( rand() - 0.5 ); # amount by which energy of state to be perturbed
-      $old_energy = $ebars{$bartmp};
-      $new_energy = $old_energy + $delta_e;
-      if ( grep { $bartmp eq $_ } @slowpairs ) {
-         print MCFILE "... CHANGING A SLOW TRANSN STATE\n";
-         if ( $new_energy < $ebarslow ) {
-           $new_energy = $ebarslow;
-           $delta_e = $ebarslow-$old_energy;
-         } #change delta e such that old energy + delta = ebar slow
-       } elsif ( $new_energy < 0.0 ) { #fix this?
-            $new_energy = 0.0;
-            $delta_e = 0.0;
-      } #change delta e such that old energy + delta = 0
-         # equivalent to setting minimum rate to be kzero
-      $ebars{$bartmp} = $old_energy + $delta_e;
-      print MCFILE "Perturb transition state $bartmp by delta_e=$delta_e from $old_energy to (non-negative) $new_energy\n";
-      adjust_tied_barriers2( $bartmp, $connected_transitions, $delta_e);
-      unit_test_tied_energy_difference($old_connected_transitions,$connected_transitions, "transitions");
-   }
-}
+  #to compare energies before/after
+  $old_connected_states = dclone $connected_states;
+  $old_connected_transitions = dclone $connected_transitions;
 
 
-# Create/re-generate rates and matrix to evaluate initial state or trial move
-# array of state pairs
-# create/update transition matrix of rates, matrix to solve, and hash of transn-state energies
-%ebar_hash = (); #testing
-$i=0;
-foreach $sa (@states) {
-   $j=0;
-   $diag[$i] = 0;
-   foreach $sb (@states) {
-      $a_name = $$sa[0];
-      $b_name = $$sb[0];
-      if ( $i<$j ) {
-          $pairname = $a_name."_AND_".$b_name;
-      }
-      else         { # pairname INDEPENDENT of order
-          $pairname = $b_name."_AND_".$a_name;
-      }
-      $d = distance( \@$sa, \@$sb, \@unit_lengths ); # passing references
-      if ( $d==1 ) { # transitions only allowed between 'nearest-neighbor' states
-         $energy_a = $energies{$a_name};
-         $energy_b = $energies{$b_name};
-         $ddmu = 0.0;
-         if ( is_binding( $a_name, $b_name ) ) { # rate adjustments based on ligand concentration - binding only
-            $dmu_a = $energies_noneq{$a_name}; # log of concentration diff of a vs. equil
-            $dmu_b = $energies_noneq{$b_name}; # log of concentration diff of a vs. equil
-            $ddmu = $dmu_a - $dmu_b;
-            #print LOG "New rate: ddmu = $ddmu    $a_name  =>  dmu_a = $dmu_a  ...  $b_name => dmu_b = $dmu_b\n";
-         }
-         $emax = 0.5*(  $energy_a + $energy_b + abs( $energy_a - $energy_b ));
-         $ebar = $emax + $ebars{$pairname}; # transition state energy
-         $ebar_hash{$pairname} = $ebar; #TESTING
-         $rateij = exp( $ddmu ) * $kzero * exp( -( $ebar - $energy_a ) ); # simple Arrhenius rate * ligand conc
+  ## Trial move
+  if ( $n>0 ) {
 
-      }
-      else { # distance not 1, so rate is zero
-         $rateij = 0.0;
-         $edges[$i][$j] = 0;
-      }
-      $rates[$i][$j] = $rateij;
-      $matrix[$i][$j] = $rates[$i][$j]; # what will actually be used to solve
-      $diag[$i] -= $rateij;
-      $j++;
-   }
-   $matrix[$i][$i] = $diag[$i];
-   $rates[$i][$i] = $diag[$i];
-   $matrix[$i][@states-1] = 1; # for probability constraint
-   $i++;
-}
-
-### Make alternative rate matrix needed to find populations
-#print LOG "\nConstructing alt_rates matrix\n";
-for ( $i=0; $i<$n_alt; $i++ ) { # zero out rates because they're re-summed each MC step
-   for ( $j=0; $j<$n_alt; $j++ ) {
-      $alt_rates[$i][$j] = 0.0;
-   }
-}
-# sum over all rates from equivalent states
-for ( $i=0; $i<$nstates; $i++ ) { # run through original indices
-   $ialt = equiv_state($i);
-   for ( $j=0; $j<$nstates; $j++ ) {
-      $jalt = equiv_state($j);
-      #print LOG "Making new matrix states $i = $istate and $j = $jstate\n";
-      unless ( $i==$j) { $alt_rates[$ialt][$jalt] += $rates[$i][$j]; }
-   }
-}
-# add diagonal elements
-for ( $i=0; $i<$n_alt; $i++ ) { # zero out rates because they're re-summed each MC step
-   $sum = 0.0;
-   for ( $j=0; $j<$n_alt; $j++ ) {
-      unless ( $i==$j) { $sum -= $alt_rates[$i][$j]; }
-   }
-   $alt_rates[$i][$i] = $sum;
-}
-# print the alt rates matrix and define the matrix for solution
-#print LOG "\n\nPresenting the alternate rate matrix ....\n";
-for ( $i=0; $i<$n_alt; $i++ ) { # zero out rates because they're re-summed each MC step
-   for ( $j=0; $j<$n_alt; $j++ ) {
-      #printf("%5.2e  ", $alt_rates[$i][$j]);
-      if ( $j < $n_alt-1 ) {
-         $alt_matrix[$i][$j] = $alt_rates[$i][$j];
-      }
-   }
-   $alt_matrix[$i][$n_alt-1] = 1; # for probability constraint
-   #print LOG "\n";
-}
-#print LOG "\n\n";
+     # choose random state or transition-state energy to perturb
+     if ( rand() < 0.5 ) { # trial move is perturbation to state energy
+        $state_move = 1;  # 1 for changing state, 0 for changing barrier
+        $state_ok = 0; # flag for whether chosen state is in fixed list and should be excluded
+        while ( $state_ok==0 ) {
+           $nrand = floor(rand()*$nstates); # random element of states array
+           #print MCFILE "nstates = $nstates   nrand = $nrand\n";
+           $tmpstate = $states[$nrand][0];
+           if ( (grep { $tmpstate eq $_ } @reference_states) ){#debugging
+           }
+           if ( (grep { $tmpstate eq $_ } keys %fixed_states) ){#debugging
+           }
+           unless ( (grep { $tmpstate eq $_ } keys %fixed_states)  || ((grep { $tmpstate eq $_ } @reference_states))  ) { $state_ok = 1; }
+           #print MCFILE "MC: chosen state $tmpstate    state_ok = $state_ok\n";
+        }
+        $delta_e = 2.0*$demax*( rand() - 0.5 ); # amount by which energy of state to be perturbed
+        $old_energy = $energies{$tmpstate}; # keep track of perturbed state's energy
+        $new_energy = $old_energy + $delta_e; # perturb energy
+        $energies{$tmpstate} = $new_energy; # set state's energy to new energy
+        print MCFILE "Perturb state $tmpstate by delta_e=$delta_e from $old_energy to $new_energy\n";
+        adjust_tied_energies2( $tmpstate, $connected_states, $delta_e); #use delta_e because some states in equivalent group have different energies, can't set them all to new energy
+        unit_test_tied_energy_difference($old_connected_states, $connected_states, "states" );
+     }
+     else { # trial move is perturbation to transition-state (energy barrier) energy
+        $state_move = 0;
+        $nbars = keys %ebars;
+        $nrand = floor(rand()*$nbars); # random element of transition states array
+        $bartmp = $barkeys[$nrand]; # name of transition state to be perturbed
+        print MCFILE "Perturb transition state $nrand = $bartmp  with  ebar = $ebars{$bartmp}\n";
+        $delta_e = 2.0*$demax*( rand() - 0.5 ); # amount by which energy of state to be perturbed
+        $old_energy = $ebars{$bartmp};
+        $new_energy = $old_energy + $delta_e;
+        if ( grep { $bartmp eq $_ } @slowpairs ) {
+           print MCFILE "... CHANGING A SLOW TRANSN STATE\n";
+           if ( $new_energy < $ebarslow ) {  # slow transition -> make large barrier
+             $new_energy = $ebarslow;
+             $delta_e = $ebarslow-$old_energy;   #change delta e such that old energy + delta = ebar slow
+            } # elsif ($new_energy >  $ebarslow + $barrier_max){
+         #      print "$n barrier energy $bartmp set too high: $new_energy. Setting to max: $ebarslow + $barrier_max.\n";
+         #      warn "$n barrier energy $bartmp set too high: $new_energy. Setting to max: $ebarslow + $barrier_max.\n";
+         #      $new_energy = $ebarslow + $barrier_max;
+         #      $delta_e = ($ebarslow + $barrier_max)-$old_energy;
+         #      print "bartmp = $bartmp, old energy = $old_energy, delta_e = $delta_e, new_energy = $new_energy, bar_max = $barrier_max \n";
+         #   }
+         } elsif ( $new_energy < 0.0 ) { #fix this?
+              $new_energy = 0.0; # equivalent to setting minimum rate to be kzero
+              $delta_e = 0.0;  #change delta e such that old energy + delta = 0
+         } # elsif ( $new_energy > $barrier_max ) {
+      #          print "$n barrier energy $bartmp set too high: $new_energy. Setting to max: $barrier_max.\n";
+      #          warn "$n barrier energy $bartmp set too high: $new_energy. Setting to max: $barrier_max.\n";
+      #          $new_energy = $barrier_max; # barrier is capped to maximum
+      #          $delta_e = $barrier_max - $old_energy;
+      #          print "bartmp = $bartmp, old energy = $old_energy, delta_e = $delta_e, new_energy = $new_energy, bar_max = $barrier_max \n";
+      #        }
+        $ebars{$bartmp} = $old_energy + $delta_e;
+        print MCFILE "Perturb transition state $bartmp by delta_e=$delta_e from $old_energy to (non-negative) $new_energy\n";
+        adjust_tied_barriers2( $bartmp, $connected_transitions, $delta_e);
+        unit_test_tied_energy_difference($old_connected_transitions,$connected_transitions, "transitions");
+     }
+  }
 
 
-# write rates file for inspection
-open(KFILE, "> $kfile");
-for ( $i=0; $i<@states; $i++ ) {
-   for ( $j=0; $j<@states; $j++ ) {
-      printf KFILE "%8.4e  ", $rates[$i][$j];
-   }
-   print KFILE "\n\n";
-}
-close(KFILE);
+  # Create/re-generate rates and matrix to evaluate initial state or trial move
+  # array of state pairs
+  # create/update transition matrix of rates, matrix to solve, and hash of transn-state energies
+  %ebar_hash = (); #testing
+  $i=0;
+  foreach $sa (@states) {
+     $j=0;
+     $diag[$i] = 0;
+     foreach $sb (@states) {
+        $a_name = $$sa[0];
+        $b_name = $$sb[0];
+        if ( $i<$j ) {
+            $pairname = $a_name."_AND_".$b_name;
+        }
+        else         { # pairname INDEPENDENT of order
+            $pairname = $b_name."_AND_".$a_name;
+        }
+        $d = distance( \@$sa, \@$sb, \@unit_lengths ); # passing references
+
+        if ( $d==1 ) { # transitions only allowed between 'nearest-neighbor' states
+           $energy_a = $energies{$a_name};
+           $energy_b = $energies{$b_name};
+           $ddmu = 0.0;
+           if ( is_binding( $a_name, $b_name ) ) { # rate adjustments based on ligand concentration - binding only
+              $dmu_a = $energies_noneq{$a_name}; # log of concentration diff of a vs. equil
+              $dmu_b = $energies_noneq{$b_name}; # log of concentration diff of a vs. equil
+              $ddmu = $dmu_a - $dmu_b;
+              #print LOG "New rate: ddmu = $ddmu    $a_name  =>  dmu_a = $dmu_a  ...  $b_name => dmu_b = $dmu_b\n";
+           }
+           $emax = 0.5*(  $energy_a + $energy_b + abs( $energy_a - $energy_b ));
+           $ebar = $emax + $ebars{$pairname}; # transition state energy
+           $ebar_hash{$pairname} = $ebar; #TESTING
+           $rateij = exp( $ddmu ) * $kzero * exp( -( $ebar - $energy_a ) ); # simple Arrhenius rate * ligand conc
+           if ($rateij > 1e20){  # check for very large rates...
+              print "$n WARNING! Rate is very large: $rateij";
+              print LOG "$n WARNING! Rate is very large: $rateij";
+              warn "$n WARNING! Rate is very large: $rateij";
+           } 
+           if ($rateij >  exp( $ddmu ) * $kzero){
+               print "$n WARNING! Rate $rateij is above exp( $ddmu ) * $kzero";
+               print LOG "$n WARNING! Rate $rateij is above exp( $ddmu ) * $kzero";
+               warn "$n WARNING! Rate $rateij is above exp( $ddmu ) * $kzero";
+            }
 
 
-# Call pdl matrix solver function (used instead of python for better performance)
+        }
+        else { # distance not 1, so rate is zero
+           $rateij = 0.0;
+           $edges[$i][$j] = 0;
+        }
+        $rates[$i][$j] = $rateij;
+        $matrix[$i][$j] = $rates[$i][$j]; # what will actually be used to solve
+        $diag[$i] -= $rateij;
+        $j++;
+     }
+     $matrix[$i][$i] = $diag[$i];
+     $rates[$i][$i] = $diag[$i];
+     $matrix[$i][@states-1] = 1; # for probability constraint
+     $i++;
+  }
+
+  ### Make alternative rate matrix needed to find populations
+  #print LOG "\nConstructing alt_rates matrix\n";
+  for ( $i=0; $i<$n_alt; $i++ ) { # zero out rates because they're re-summed each MC step
+     for ( $j=0; $j<$n_alt; $j++ ) {
+        $alt_rates[$i][$j] = 0.0;
+     }
+  }
+  # sum over all rates from equivalent states
+  for ( $i=0; $i<$nstates; $i++ ) { # run through original indices
+     $ialt = equiv_state($i);
+     for ( $j=0; $j<$nstates; $j++ ) {
+        $jalt = equiv_state($j);
+        #print LOG "Making new matrix states $i = $istate and $j = $jstate\n";
+        unless ( $i==$j) { $alt_rates[$ialt][$jalt] += $rates[$i][$j]; }
+     }
+  }
+  # add diagonal elements
+  for ( $i=0; $i<$n_alt; $i++ ) { # zero out rates because they're re-summed each MC step
+     $sum = 0.0;
+     for ( $j=0; $j<$n_alt; $j++ ) {
+        unless ( $i==$j) { $sum -= $alt_rates[$i][$j]; }
+     }
+     $alt_rates[$i][$i] = $sum;
+  }
+  # print the alt rates matrix and define the matrix for solution
+  #print LOG "\n\nPresenting the alternate rate matrix ....\n";
+  for ( $i=0; $i<$n_alt; $i++ ) { # zero out rates because they're re-summed each MC step
+     for ( $j=0; $j<$n_alt; $j++ ) {
+        #printf("%5.2e  ", $alt_rates[$i][$j]);
+        if ( $j < $n_alt-1 ) {
+           $alt_matrix[$i][$j] = $alt_rates[$i][$j];
+        }
+     }
+     $alt_matrix[$i][$n_alt-1] = 1; # for probability constraint
+     #print LOG "\n";
+  }
+  #print LOG "\n\n";
+
+
+  # write rates file for inspection
+  open(KFILE, "> $kfile") or die "Error! Cannot open $kfile" ;
+  for ( $i=0; $i<@states; $i++ ) {
+     for ( $j=0; $j<@states; $j++ ) {
+        printf KFILE "%8.4e  ", $rates[$i][$j];
+     }
+     print KFILE "\n\n";
+  }
+  close(KFILE) or die "Error! Cannot close";
+
+  #print $fh_d "$n ";
+  # if ($n%$dprint==0 ){
+  #   print $fh_d "$n, " x scalar @alt_matrix;
+  #   print $fh_d "\n";
+  #   foreach my $row (@alt_matrix) {
+  #     foreach my $element (@$row) {
+  #       print $fh_d "$element, " ;
+  #     }
+  #     print $fh_d "\n";
+  #   }
+  # }
+
+
 call_pdl( \@alt_matrix, $tmpfile);
 
 
-# retrieve steady-state probabilities for alt states
-@alt_pss = ();
-open(TMP, "$tmpfile");
-while (<TMP>) {
-   $_ =~ s/\[/ /;
-   $_ =~ s/\]/ /;
-   @vals = split ' ', $_;
-   #print LOG "reading line in tmpfile: @vals\n";
-   foreach $val ( @vals ) {
-      $x = 1.0*$val;
-      push @alt_pss, $x;
-   }
-}
-print LOG "steady state values: @alt_pss\n\n";
-close(TMP);
+  # retrieve steady-state probabilities for alt states
+  @alt_pss = ();
 
-# assign steady-state probabilities to all states
-@pss = ();
-for ( $i=0; $i<$nstates; $i++ ) { # run through original indices
-   $ialt = equiv_state($i); # index of reference state with same prob
-   $pss[$i] = $alt_pss[$ialt];
-   #print LOG "State $i inherits prob $alt_pss[$ialt] from state $ialt\n";
-}
+  $pss_zero_count = 0;
+  $pss_error_flag = 0;
+  $pss_sum = 0;
+  open(TMP, "$tmpfile") or die "Error! Cannot open $tmpfile";
+  while (<TMP>) {
+     $_ =~ s/\[/ /;
+     $_ =~ s/\]/ /;
+     @vals = split ' ', $_;
+   #   if (scalar @vals == 0){
+   #       $pss_error_flag = 1;
+   #       print LOG "WARNING! No SS probabilites in file... Likely due to singular matrix error. Error flag is set and move will be rejected.\n";
+   #       print "WARNING! No SS probabilites in file... Likely due to singular matrix error. Error flag is set and move will be rejected.\n";
+   #       warn  "WARNING! No SS probabilites in file... Likely due to singular matrix error. Error flag is set and move will be rejected.\n";
+   #   }
+     #print LOG "reading line in tmpfile: @vals\n";
+     foreach $val ( @vals ) {
+        $x = 1.0*$val;
+        $pss_sum = $pss_sum + $x;
+        # if ($n%$dprint==0 ){
+        #   print $fh_d "$x, ";
+        # }
+        if ($x==0){
+           $pss_zero_count += 1;
+        }
+        push @alt_pss, $x;
+     }
+  }
+  # if ($n%$dprint==0 ){
+  #     print $fh_d "\n\n";
+  # }
+  
+  print LOG "steady state values: @alt_pss\n\n";
+  close(TMP) or die "Error! Cannot close";
+  if ($pss_zero_count == scalar @alt_pss){
+     $pss_error_flag = 1;
+     print LOG "$n WARNING! All SS probabilities = 0. Likely due to singular matrix error. Error flag is set and move will be rejected.\n";
+     print "$n WARNING! All SS probabilities = 0. Likely due to singular matrix error. Error flag is set and move will be rejected.\n";
+     warn "$n WARNING! All SS probabilities = 0. Likely due to singular matrix error. Error flag is set and move will be rejected.\n";
+  }
+  if (abs(1-$pss_sum) >= 0.01 ){
+     $pss_error_flag = 1;
+     print LOG "$n WARNING! Sum of SS probabilities != 1. Likely due to singular matrix error. Error flag is set and move will be rejected.\n";
+     print "$n WARNING! Sum of SS probabilities != 1. Likely due to singular matrix error. Error flag is set and move will be rejected.\n";
+     warn "$n WARNING! Sum of SS probabilities != 1. Likely due to singular matrix error. Error flag is set and move will be rejected.\n";
+  }
 
-# Calculate MC energy score for trial perturbation check accept/reject
-if ( $n>0 ) { # record old values
-   $emc_old = $emc;
-}
-@energy_info = mc_energy ();
-$emc =  $energy_info[0];
-( $sflow, $wflow, $nflow ) = ( $energy_info[1], $energy_info[2], $energy_info[3] );
-if ( $n==0 ) {
-   $emc_old = $emc; $n_accept = 0;
-   # Output data for analysis
-   print DATA "# n_mc   mc_energy   ";
-   print FLOWS "# n_mc   ";
-   for ( $i=0; $i<@states; $i++ ) {
-      for ( $j=0; $j<@states; $j++ ) {
-         if ( $edges[$i][$j] == 1 ) {
-            print DATA "$states[$i][0]_TO_$states[$j][0]   ";
-            print FLOWS "$states[$i][0]_TO_$states[$j][0]   ";
-         }
-      }
-   }
-   print DATA "\n";
-   print FLOWS "\n";
-}
-if ( $n>0 ) { # check if move accepted
-   if ( $n%$n_beta==1 ) {  # routine to adjust beta values
-      if ( $n==1 ) {
-         $ebeta_old = $emc; # ebeta_old is emc at prior beta check point
-         $beta = $beta_init;
-      }
-      else {
-         $beta_old = $beta;
-         print LOG "Beta: emc = $emc    ebeta_old = $ebeta_old      beta_old = $beta_old\n";
-         $frac_diff = 2.0*( $emc - $ebeta_old ) / ( abs($emc) + abs($ebeta_old) );
-         $ebeta_old = $emc; # ebeta_old is emc at prior beta check point
-         $scale_fac = rand()*$fbeta;
-         if ( abs($frac_diff) < $tol ) { # energy change approximately constant - decrease beta
-            $beta /= $scale_fac;
-         }
-         elsif ( $frac_diff <= $tol ) { # energy has decreased - possibly increase beta
-            if ( rand() > $pbeta_stay ) { $beta *= $scale_fac; }
-         }
-         #elsif ( $frac_diff >= $tol ) { # energy has increased - possibly decrease beta
-            #if ( rand() > $pbeta_stay ) { $beta /= $scale_fac; }
-         #}
-         printf LOG "\nMC: Based on frac_diff = %6.3e,  beta is now %6.3e\n\n", $frac_diff, $beta;
-         printf MCFILE "\nMC: Based on frac_diff = %6.3e,  beta is now %6.3e\n\n", $frac_diff, $beta;
-      }
-   }
-   $ediff = $emc - $emc_old;
-   print MCFILE "MC energies: emc=$emc   emc_old=$emc_old   ediff = $ediff\n";
-   if ( $ediff < 0 || rand() < exp(-$beta*$ediff) ) { # Accept - keep things as they are
-      $mc_change = 1;
-      $n_accept ++; $accept_ratio = $n_accept/$n;
-      print MCFILE "Move accepted!   Acceptance ratio = $accept_ratio\n";
-   }
-   else { # Rejection
-      $mc_change = 0;
-      $accept_ratio = $n_accept/$n;
-      print MCFILE "Move rejected!!!    Acceptance ratio = $accept_ratio\n";
-      if ( $state_move == 1 ) { # state energy was changed - change back
-         $energies{$tmpstate} = $old_energy;
-         print MCFILE "State rejection: Change back state $tmpstate to $energies{$tmpstate}\n";
-         adjust_tied_energies2( $tmpstate, $connected_states, -1*$delta_e);#note: negative change in energy used to reset
-         unit_test_check_restored_energies($old_connected_states, $connected_states, "states");
-      }
-      else { # transition state energy was changed - change back
-         $ebars{$bartmp} = $old_energy;
-         print MCFILE "Barrier rejection: Change back transition state $bartmp to  $ebars{$bartmp}\n";
-         adjust_tied_barriers2( $bartmp, $connected_transitions, -1*$delta_e); #note: negative change in energy used to reset
-         unit_test_check_restored_energies($old_connected_transitions, $connected_transitions, "transitions");
-      }
-      $emc = $emc_old;
-   }
+  # assign steady-state probabilities to all states
+  @pss = ();
+  for ( $i=0; $i<$nstates; $i++ ) { # run through original indices
+     $ialt = equiv_state($i); # index of reference state with same prob
+     $pss[$i] = $alt_pss[$ialt];
+     #print LOG "State $i inherits prob $alt_pss[$ialt] from state $ialt\n";
+  }
 
-}
+  # Calculate MC energy score for trial perturbation check accept/reject
+  if ( $n>0 ) { # record old values
+     $emc_old = $emc;
+  }
+  @energy_info = mc_energy ();
+  $emc =  $energy_info[0];
+  ( $sflow, $wflow, $nflow ) = ( $energy_info[1], $energy_info[2], $energy_info[3] );
 
-# print rates etc to file for plotting/analysis
-$omit_this = 1;
-%branches = ();
-@netflow = ();
-if ( $n%$dprint==0 ) {
-   print DATA "$n   $emc   ";
-   unless ( $omit_this==1 ) {
-   #print LOG "\nn = $n (Monte Carlo step number)      emc = $emc\n";
-   print FLOWS "$n   ";
-   for ( $i=0; $i<@states; $i++ ) {
-      $a_name = $states[$i][0];
-      print LOG "\nBRANCHING FRACTIONS FROM STATE $a_name ...\n";
-      $branch_sum = 1e-99;
-      for ( $j=0; $j<@states; $j++ ) {
-         if ( $edges[$i][$j] == 1 ) {
-            $b_name = $states[$j][0];
-            $transn = $a_name . "_TO_" . $b_name;
-            print DATA "$rates[$i][$j]   ";
-            $flowtmp = flow( $a_name, $b_name );
-            $rflowtmp = flow( $b_name, $a_name );
-            $netflow[$i][$j] = $flowtmp - $rflowtmp;
-            $branches{$transn} = $flowtmp;
-            $branch_sum += $flowtmp;
-            printf FLOWS "%6.3e  ", $flowtmp;
-            if ( $rates[$i][$j]>$kzero*1e-3 ) { # print rates which are significant
-               print MCFILE "TRANSN ON: $a_name to $b_name with k = $rates[$i][$j]\n";
-            }
-            else { print MCFILE "TRANSN OFF: $a_name to $b_name ...... with k = $rates[$i][$j]\n";}
-         } # end of if edges loop
-      } # end of first j loop
-      # second j loop to get branching ratios
-      for ( $j=0; $j<@states; $j++ ) {
-         if ( $edges[$i][$j] == 1 ) {
-            $b_name = $states[$j][0];
-            $transn = $a_name . "_TO_" . $b_name;
-            $branches{$transn} /= $branch_sum;
-            printf LOG "   %s  %5.3f <= %6.2e  Net flow = %6.2e\n",  $transn, $branches{$transn}, $branches{$transn}, $netflow[$i][$j];
-         } # end of if edges loop
-      } # end of second j loop
-      print LOG "\n";
-   }
-   print FLOWS "\n";
-   } # end of omit_this
-   print DATA "\n";
-}
+  # if ($proof == 1){
+    #$emc = avg_emc();  # testing averaging out emc for different dmu
+  #}
 
-if ( $n==0 || $mc_change==1 ) { # save flows for accepted moves
-   @netflow_save = ();
-   $sflow_save = $sflow;
-   $wflow_save = $wflow;
-   $nflow_save = $nflow;
-   for ( $i=0; $i<@alt_states; $i++ ) {
-      $a_name = $alt_states[$i];
-      for ( $j=0; $j<@alt_states; $j++ ) {
-         if ( $alt_rates[$i][$j] > 0 ) {
-            $b_name = $alt_states[$j];
-            $transn = $a_name . "_TO_" . $b_name;
-            $flowtmp = flow_alt( $a_name, $b_name );
-            $rflowtmp = flow_alt( $b_name, $a_name );
-            $netflow_save[$i][$j] = $flowtmp - $rflowtmp;
-         } # end of if edges loop
-      } # end of first j loop
-      print LOG "\n";
-   }
-}
-# print flows among physical ('alt') states (based on last accepted move)
-if ( $n%$dprint==0 ) {
-   print LOG "\nn = $n (Monte Carlo step number)      emc = $emc\n";
-   print LOG "S flow = $sflow_save    W flow = $wflow_save    N flow = $nflow_save\n";
-   for ( $i=0; $i<@alt_states; $i++ ) {
-      $a_name = $alt_states[$i];
-      print LOG "\nOVERALL PHYSICAL FLOWS FROM STATE $a_name ...\n";
-      for ( $j=0; $j<@alt_states; $j++ ) {
-         if ( $alt_rates[$i][$j] > 0 ) {
-            $b_name = $alt_states[$j];
-            $transn = $a_name . "_TO_" . $b_name;
-            printf LOG "   %s    Net flow = %6.2e\n",  $transn, $netflow_save[$i][$j];
-         } # end of if edges loop
-      } # end of first j loop
-      print LOG "\n";
-   }
-}
+  if ( $n==0 ) {
+     $emc_old = $emc; $n_accept = 0;
+     # Output data for analysis
+     print DATA "# n_mc   mc_energy   ";
+     print FLOWS "# n_mc   ";
+     for ( $i=0; $i<@states; $i++ ) {
+        for ( $j=0; $j<@states; $j++ ) {
+           if ( $edges[$i][$j] == 1 ) {
+              print DATA "$states[$i][0]_TO_$states[$j][0]   ";
+              print FLOWS "$states[$i][0]_TO_$states[$j][0]   ";
+           }
+        }
+     }
+     print DATA "\n";
+     print FLOWS "\n";
 
-# Output model (state and barrier energies) for future use
-# ? state_print(); # prints states and energies ?
-if ( $n%$dprint==0 ) {
-   if ( $n==0 ) {
-      $modelfolder = "models_from_run";
-      system("mkdir $modelfolder");
-   }
-   $energyfile = $modelfolder . "\/" . "energies-$n";
-   $barrierfile = $modelfolder . "\/" . "barriers-$n";
-   open(ENERGY, "> $energyfile");
-   open(BARRIER, "> $barrierfile");
-   foreach $sa (@states) {
-      $a_name = $$sa[0];
-      $energy_a = $energies{$a_name};
-      print ENERGY "$a_name    $energy_a\n";
-   }
-   foreach $transn (@barkeys) {
-      print BARRIER "$transn    $ebars{$transn}\n";
-      if (exists $ebars{$transn}){ #testing with ebar values instead of ebars
-        #print BARRIER "$transn    $ebar_hash{$transn}\n";
-        print DEBUG "$transn    $ebar_hash{$transn}\n";
-      }
+  }
 
-      #print BARRIER "$transn    $ebar{$transn}\n"; #testing
-   }
-   close(ENERGY);
-   close(BARRIER);
-}
 
-#print_energies($connected_transitions, "transitions");
-unit_test_negative_energy($connected_transitions, "transitions");
+  if ( $n>0 ) { # check if move accepted
 
-#make graph of mc energy in 10% increments, if graphing is turned on
-if ( $n>0 && ( $n % ( $nsteps * 0.10) == 0) && ($graph == 1) ){
-  plot_mc_energies($datfile); #plots a graph of mc e vs n step
-}
+     if ( $n%$n_beta==0 ) {  # routine to adjust beta values
+        if ( $n==1 ) {  # initialize
+           #$ebeta_old = $emc; # ebeta_old is emc at prior beta check point
+           #$beta = $beta_init;
+           $beta = $b_min;
+           $tempering_count = 0;
+           $phase = "max temp";
+        }
+        else { #  either increase beta or reset beta to intitial value
+          #print BETA "n: $n Emc: $emc old beta: $beta tempering count: $tempering_count\n";
+          if ($tempering_count < $beta_step_1){  # stay at low value
+            #print BETA "staying at low beta value\n";
+            $tempering_count += 1;
+            $beta = $b_min;  # probably unecessary
+            $phase = "max temp";
+            #print BETA "beta stayed at min: $beta\n";
+          } elsif ($tempering_count < ($beta_step_2)) {  # increase beta
+            $tempering_count += 1;
+            $beta *= $beta_increment;
+            $phase = "cooling";
+            #print BETA "beta is increased to: $beta\n";
+          } elsif ($tempering_count < ($beta_step_3)) {  # at max beta
+            $tempering_count += 1;
+            $beta = $b_max;
+            $phase = "min temp";
+            #print BETA "beta stayed at max: $beta\n";
+          } elsif ($tempering_count < ($beta_step_4)) {  # decrease beta
+            $tempering_count += 1;
+            $beta /= $beta_decrement;
+            $phase = "heating";
+            #print BETA "beta is decreased to: $beta\n";
+          } else {  # reset beta
+            $tempering_count = 0;
+            $phase = "reset";
+            #print BETA "reseting beta to min: $b_min\n";
+          }
+        }
+
+     #       $beta_old = $beta;
+     #       print BETAG "";
+     #       print LOG "Beta: emc = $emc    ebeta_old = $ebeta_old      beta_old = $beta_old\n";
+     #       print  "n = $n Beta: emc = $emc    ebeta_old = $ebeta_old      beta_old = $beta_old \n";
+     #       $frac_diff = 2.0*( $emc - $ebeta_old ) / ( abs($emc) + abs($ebeta_old) );
+     #       #$frac_diff = $emc - $ebeta_old;  # testing
+     #       $ebeta_old = $emc; # ebeta_old is emc at prior beta check point
+     #       $scale_fac = rand()*$fbeta;
+     #       $de = $emc - $emc_old;  # for debugging
+     #       print "frac diff = $frac_diff  scale_fac = $scale_fac tol = $tol \n";
+     #       print BETAG "$n   $beta   ";
+     #       print BETA "n, emc, beta, delta emc, beta frac diff, tol \n";  # testing
+     #       print BETA "$n, $emc, $beta, $de, $frac_diff, $tol\n";  #testing
+     #       print BETA "if abs($frac_diff) < $tol, decrease. else if $frac_diff < $tol, possibly increase\n";
+     #       #print BETA "n = $n b1 = $beta_old e2 = $emc e1 = $ebeta_old de = $de frac diff = $frac_diff scale fac = $scale_fac tol=$tol\n";
+     #       if ( abs($frac_diff) < $tol ) { # energy change approximately constant - decrease beta
+     #          print "energy change approximately constant - decrease beta\n";
+     #          print BETA "energy change approximately constant - decrease beta\n";
+     #          #print BETA "energy change approximately constant - decrease beta\n";
+     #          $beta /= $scale_fac;
+     #       }
+     #       elsif ( $frac_diff <= $tol ) { # energy has decreased - possibly increase beta
+     #          print "energy has decreased\n";
+     #          print BETA "energy has decreased\n";
+     #          if ( rand() > $pbeta_stay ) {
+     #            print "energy has decreased - possibly increase beta\n";
+     #            print BETA "energy has decreased - and will now increase beta\n";
+     #            #print BETA "energy has decreased - possibly increase beta\n";
+     #            $beta *= $scale_fac;
+     #          }
+     #       }
+     #
+     #
+     #       print BETA "n:$n reset beta every: $n_beta_reset\n";
+     #       if ($n%$n_beta_reset == 1){ # testing. reset beta periodically
+     #         $beta = $beta_init;
+     #         print BETA "beta is reset to initial value = $beta_init\n";
+     #       }
+     #
+     #
+     #       print BETA "$n, $emc, $beta, $de, $frac_diff\n";  #testing
+     #       #elsif ( $frac_diff >= $tol ) { # energy has increased - possibly decrease beta
+     #          #if ( rand() > $pbeta_stay ) { $beta /= $scale_fac; }
+     #       #}
+     #       #printf BETA "MC: Based on frac_diff = %6.3e,  beta is now %6.3e\n", $frac_diff, $beta;
+     #       printf "\nMC: Based on frac_diff = %6.3e,  beta is now %6.3e\n\n", $frac_diff, $beta;
+     #       printf LOG "\nMC: Based on frac_diff = %6.3e,  beta is now %6.3e\n\n", $frac_diff, $beta;
+     #       printf MCFILE "\nMC: Based on frac_diff = %6.3e,  beta is now %6.3e\n\n", $frac_diff, $beta;
+     #    }
+     #    print BETA "\n";
+     }
+     #warn "tempering count = $tempering_count\n";
+     $ediff = $emc - $emc_old;
+     $b_factor = exp(-$beta*$ediff);
+     print MCFILE "$n MC energies: emc=$emc   emc_old=$emc_old   ediff = $ediff\n";
+     print "$n MC energies: emc=$emc   emc_old=$emc_old   ediff = $ediff\n";
+
+     if ( ($ediff < 0 || rand() < $b_factor ) && $pss_error_flag != 1) { # Accept - keep things as they are
+        $mc_change = 1;
+        $n_accept ++; $accept_ratio = $n_accept/$n;
+        print MCFILE "$n Move accepted!   Acceptance ratio = $accept_ratio\n";
+        print "$n Move accepted!   Acceptance ratio = $accept_ratio\n";
+        #print BETA "Move accepted!   Acceptance ratio = $accept_ratio\n";
+        print BETA "$n, $emc, $beta, $ediff, $phase, accepted, $accept_ratio, $b_factor\n";
+     }
+     else { # Rejection
+        $mc_change = 0;
+        $accept_ratio = $n_accept/$n;
+        print MCFILE "$n Move rejected!!!    Acceptance ratio = $accept_ratio\n";
+        print "$n Move rejected!!!    Acceptance ratio = $accept_ratio\n";
+        print BETA "$n, $emc, $beta, $ediff, $phase, rejected, $accept_ratio, $b_factor\n";
+        #print BETA "Move rejected!!!    Acceptance ratio = $accept_ratio\n";
+        if ( $state_move == 1 ) { # state energy was changed - change back
+           $energies{$tmpstate} = $old_energy;
+           print MCFILE "$n State rejection: Change back state $tmpstate to $energies{$tmpstate}\n";
+           adjust_tied_energies2( $tmpstate, $connected_states, -1*$delta_e);#note: negative change in energy used to reset
+           unit_test_check_restored_energies($old_connected_states, $connected_states, "states");
+        }
+        else { # transition state energy was changed - change back
+           $ebars{$bartmp} = $old_energy;
+           print MCFILE "$n Barrier rejection: Change back transition state $bartmp to  $ebars{$bartmp}\n";
+           adjust_tied_barriers2( $bartmp, $connected_transitions, -1*$delta_e); #note: negative change in energy used to reset
+           unit_test_check_restored_energies($old_connected_transitions, $connected_transitions, "transitions");
+        }
+        $emc = $emc_old;
+     }
+     #print BETA "\n";
+  }
+
+  # print rates etc to file for plotting/analysis
+  $omit_this = 1;
+  %branches = ();
+  @netflow = ();
+  if ( $n%$dprint==0 ) {
+     print DATA "$n   $emc   ";
+     #print BETA "$n   $beta  \n"; # testing
+     unless ( $omit_this==1 ) {
+     #print LOG "\nn = $n (Monte Carlo step number)      emc = $emc\n";
+     print FLOWS "$n   ";
+     for ( $i=0; $i<@states; $i++ ) {
+        $a_name = $states[$i][0];
+        #testing
+        #print LOG "\nBRANCHING FRACTIONS FROM STATE $a_name ...\n";
+        $branch_sum = 1e-99;
+        for ( $j=0; $j<@states; $j++ ) {
+           if ( $edges[$i][$j] == 1 ) {
+              $b_name = $states[$j][0];
+              $transn = $a_name . "_TO_" . $b_name;
+              print DATA "$rates[$i][$j]   ";
+              $flowtmp = flow( $a_name, $b_name );
+              $rflowtmp = flow( $b_name, $a_name );
+              $netflow[$i][$j] = $flowtmp - $rflowtmp;
+              $branches{$transn} = $flowtmp;
+              $branch_sum += $flowtmp;
+              printf FLOWS "%6.3e  ", $flowtmp;
+              if ( $rates[$i][$j]>$kzero*1e-3 ) { # print rates which are significant
+                 print MCFILE "TRANSN ON: $a_name to $b_name with k = $rates[$i][$j]\n";
+              }
+              else { print MCFILE "TRANSN OFF: $a_name to $b_name ...... with k = $rates[$i][$j]\n";}
+           } # end of if edges loop
+        } # end of first j loop
+        # second j loop to get branching ratios
+        for ( $j=0; $j<@states; $j++ ) {
+           if ( $edges[$i][$j] == 1 ) {
+              $b_name = $states[$j][0];
+              $transn = $a_name . "_TO_" . $b_name;
+              $branches{$transn} /= $branch_sum;
+              #testing
+              #printf LOG "   %s  %5.3f <= %6.2e  Net flow = %6.2e\n",  $transn, $branches{$transn}, $branches{$transn}, $netflow[$i][$j];
+           } # end of if edges loop
+        } # end of second j loop
+        #print LOG "\n"; # testing
+     }
+     print FLOWS "\n";
+     } # end of omit_this
+     print DATA "\n";
+  }
+
+  if ( $n==0 || $mc_change==1 ) { # save flows for accepted moves
+     @netflow_save = ();
+     $sflow_save = $sflow;
+     $wflow_save = $wflow;
+     $nflow_save = $nflow;
+     for ( $i=0; $i<@alt_states; $i++ ) {
+        $a_name = $alt_states[$i];
+        for ( $j=0; $j<@alt_states; $j++ ) {
+           if ( $alt_rates[$i][$j] > 0 ) {
+              $b_name = $alt_states[$j];
+              $transn = $a_name . "_TO_" . $b_name;
+              $flowtmp = flow_alt( $a_name, $b_name );
+              $rflowtmp = flow_alt( $b_name, $a_name );
+              $netflow_save[$i][$j] = $flowtmp - $rflowtmp;
+           } # end of if edges loop
+        } # end of first j loop
+        print LOG "\n";
+     }
+  }
+  # print flows among physical ('alt') states (based on last accepted move)
+  if ( $n%$dprint==0 ) {
+
+     print LOG "\nn = $n (Monte Carlo step number)      emc = $emc\n";
+     print CLUSTER "$n, $emc";
+     print LOG "S flow = $sflow_save    W flow = $wflow_save    N flow = $nflow_save\n";
+     for ( $i=0; $i<@alt_states; $i++ ) {
+        $a_name = $alt_states[$i];
+        print LOG "\nOVERALL PHYSICAL FLOWS FROM STATE $a_name ...\n";
+        for ( $j=0; $j<@alt_states; $j++ ) {
+           if ( $alt_rates[$i][$j] > 0 ) {
+              $b_name = $alt_states[$j];
+              $transn = $a_name . "_TO_" . $b_name;
+              printf LOG " %s    Net flow = %6.2e\n",  $transn, $netflow_save[$i][$j];
+              printf CLUSTER ",$netflow_save[$i][$j]";
+           } # end of if edges loop
+        } # end of first j loop
+        print LOG "\n";
+     }
+     print CLUSTER ", $nflow_save, $sflow_save, $wflow_save \n";
+  }
+  # Output model (state and barrier energies) for future use
+  # ? state_print(); # prints states and energies ?
+
+  if ( $n%$dprint==0 || $n==0 ) { # testing dfactor
+     if ( $n==0 ) {
+        $modelfolder = "models_from_run";
+        system("mkdir $modelfolder");
+     }
+     $energyfile = $modelfolder . "\/" . "energies-$n";
+     $barrierfile = $modelfolder . "\/" . "barriers-$n";
+     open(ENERGY, "> $energyfile") or die "Error! Can't open energy file";
+     open(BARRIER, "> $barrierfile") or die "Error! Can't open energy file";
+     foreach $sa (@states) {
+        $a_name = $$sa[0];
+        $energy_a = $energies{$a_name};
+        print ENERGY "$a_name    $energy_a\n";
+     }
+     foreach $transn (@barkeys) {
+        print BARRIER "$transn    $ebars{$transn}\n";
+        if (exists $ebars{$transn}){ #testing with ebar values instead of ebars
+          #print BARRIER "$transn    $ebar_hash{$transn}\n";
+          #print DEBUG "$transn    $ebar_hash{$transn}\n";
+        }
+
+        #print BARRIER "$transn    $ebar{$transn}\n"; #testing
+     }
+     close(ENERGY) or die "Error! Cannot close";
+     close(BARRIER) or die "Error! Cannot close";
+  }
+
+  #print_energies($connected_transitions, "transitions");
+  unit_test_negative_energy($connected_transitions, "transitions");
+
+  #make graph of mc energy in 10% increments, if graphing is turned on
+  # warning! graphing subroutine causes rand() to have issues
+  # models from runs of different length same conditions did not match
+  # if ( $n>0){  # to avoid 0 mod error
+  #   if (( $n % ( $nsteps * 0.10) == 0) && ($graph == 1)){
+  #     plot_mc_energies($datfile); #plots a graph of mc e vs n step
+  #   }
+  # }
 
 
 } # End of Monte Carlo loop
-close(MCFILE);
-close(DATA);
-close(FLOWS);
-close(DEBUG);
+close(MCFILE) or die "Error! Cannot close";
+close(DATA) or die "Error! Cannot close";
+close(FLOWS) or die "Error! Cannot close";
+close(DEBUG) or die "Error! Cannot close";
 $end_time = calc_wall_clock($start_time);
 print LOG "Script runtime (s): $end_time for $nsteps steps \n";
 
-close(LOG);
+close(LOG) or die "Error! Cannot close log";
+close(CLUSTER) or die "Error! Cannot close cluster file";
+close(BETA) or die "Error! Cannot close beta file";
+close(BETAG) or die "Error! Cannot close beta2 file";
 #automation diasbled for now
 
 #print LOG "Running find min python script...\n";
@@ -1205,7 +1412,7 @@ close(LOG);
 #}
 
 #move datalog to new folder
-
+close $fh_d or die "Error! Cannot close file";
 
 #################################################################################
 
@@ -1262,29 +1469,147 @@ sub initialize_barriers { # initialize barrier energies and edges array
 # Solves [A][X] = [B] my multiplying both side by [A] inverse matrix.
 # ([A]^-1)x[X] = ([A]^-1)x[B] => [I][X] = ([A]^-1)x[B] where [I] is the identity matrix
 sub call_pdl { # generate file for Python solution
+  #print " calling pdl ....\n";
+  my $tolerance = 1e-15;
+  my $flag = 0;
+  my ( $ref, $tmpfile )  = @_;
+  my @alt_matrix = @{ $ref }; # dereferencing and copying each array
+  my $n_alt = @alt_matrix;
+  my $i; my $j;
+  my $a = zeros($n_alt,$n_alt); # initializes [A] matrix to all zeros
+  my $b = zeros(1,$n_alt); # initializes [B] matrix to all zeros
+  my $c = zeros($n_alt,$n_alt); # initilizes [x] matrix to all zeros
+  set($b,0,($n_alt-1),1); # sets bottom (last) B matrix value to 1
+  # sets values of A matrix by iterating through loop
+  for ( $i=0; $i<$n_alt; $i++ ) {
+       for ( $j=0; $j<$n_alt; $j++ ) {
+            #(1) Need diagonal as negative sum of row of K
+            #(2) Need transpose K^T
+            #(3) Need sum of probabilities constraint instead of one row of K^T
+            set($a,$j,$i,$alt_matrix[$j][$i]);
+       }
+  }
+  if ($n%$dprint==0 ){
+    #print $fh_d "$n, " x scalar @a;
+    print $fh_d "$n\n";
+    #print $fh_d "\n";
+    foreach my $row (@alt_matrix) {
+      foreach my $element (@$row) {
+        print $fh_d "$element, " ;
+      }
+      print $fh_d "\n";
+    }
+  }
+
+  # Call pdl matrix solver function (used instead of python for better performance)
+  try {
+    $c = (inv($a)) x $b; # computes solutions matrix [X]  # sometimes gets an error (singular matrix or LU decomposition)!
+  } catch {
+    warn "$n caught call_pdl error: $_"; # not $@
+    print "$n caught call_pdl error: $_"; # not $@
+    $flag = 1;
+  };
+
+
+  # # check if answer is correct (x = A^-1 B => A = x^-1 B)
+  # $d = $a x $c;  # Ax = B
+  # my @comparison_matrix;
+  # foreach $_ ($d->dog)
+  # {
+  #  push @comparison_matrix, $_;
+  #  #print $_, "\n";
+  # }
+  # for( $i=0; $i<(scalar @comparison_matrix); $i++ ) {
+  #   if ($i == (scalar @comparison_matrix) - 1){  # last entry
+  #     if (abs($comparison_matrix[$i] - 1) > $tolerance ){
+  #       $flag = 1;
+  #       warn "matrix solution:$comparison_matrix[$i]  exceeds tolerance:$tolerance from 1\n";
+  #       print "matrix solution:$comparison_matrix[$i]  exceeds tolerance:$tolerance from 1\n";
+  #     }
+  #   }else {
+  #     if (abs($comparison_matrix[$i] - 0) > $tolerance){
+  #       $flag = 1;
+  #       warn "matrix solution:$comparison_matrix[$i]  exceeds tolerance:$tolerance from 0\n";
+  #       print "matrix solution:$comparison_matrix[$i]  exceeds tolerance:$tolerance from 0\n";
+  #     }
+  #   }
+  #
+  # }
+  #
+  # if it is correct, continue
+  if($flag == 0){
+    open my $fh2, ">",$tmpfile or die "Error! Cannot open" ; # Open/close file and print to temporary files
+    print $fh2 $c;
+    close $fh2 or die "Error! Cannot close";
+  } else {
+    call_pdl2( \@alt_matrix, $tmpfile);  # will return python solution
+  }
+}
+
+
+sub call_pdl2 { # generate file for Python solution
+
+# if ($n%$dprint==0 ){
+#   print $fh_d "$n, " x scalar @a;
+#   print $fh_d "\n";
+#   foreach my $row (@alt_matrix) {
+#     foreach my $element (@$row) {
+#       print $fh_d "$element, " ;
+#     }
+#     print $fh_d "\n";
+#   }
+print "$n calling python matrix solver...\n";
+warn "$n calling python matrix solver...\n";
+my $pyfile = "python_solver.py";
 my ( $ref, $tmpfile )  = @_;
 my @alt_matrix = @{ $ref }; # dereferencing and copying each array
 my $n_alt = @alt_matrix;
 my $i; my $j;
-my $a = zeros($n_alt,$n_alt); # initializes [A] matrix to all zeros
-my $b = zeros(1,$n_alt); # initializes [B] matrix to all zeros
-my $c = zeros($n_alt,$n_alt); # initilizes [x] matrix to all zeros
-set($b,0,($n_alt-1),1); # sets bottom (last) B matrix value to 1
-
-# sets values of A matrix by iterating through loop
+open(PYFILE, "> $pyfile");
+print PYFILE "import numpy as np\n";
+print PYFILE "np.set_printoptions(precision=16)\n";
+print PYFILE "a = np.array\(\[\n";
 for ( $i=0; $i<$n_alt; $i++ ) {
-     for ( $j=0; $j<$n_alt; $j++ ) {
-          #(1) Need diagonal as negative sum of row of K
-          #(2) Need transpose K^T
-          #(3) Need sum of probabilities constraint instead of one row of K^T
-          set($a,$j,$i,$alt_matrix[$j][$i]);
-     }
+   print PYFILE "\[";
+   for ( $j=0; $j<$n_alt; $j++ ) {
+      # (1) Need diagonal as negative sum of row of K
+      # (2) Need transpose K^T
+      # (3) Need sum of probabilities constraint instead of one row of K^T
+      print PYFILE "$alt_matrix[$j][$i]";  # note use of transpose
+      unless ( $j==$n_alt-1) {
+         print PYFILE ",  ";
+      }
+      else                    { print PYFILE "   "; }
+   }
+   unless ( $i==$n_alt-1) {
+      print PYFILE "\],\n";
+   }
+   else                    {
+      print PYFILE "\] \n";
+   }
 }
-$c = (inv($a)) x $b; # computes solutions matrix [X]
-open my $fh2, ">",$tmpfile or die; # Open/close file and print to temporary files
-print $fh2 $c;
-close $fh2;
+print PYFILE "])\n";
+print PYFILE "b = np.array\(\[";
+for ( $i=0; $i<$n_alt; $i++ ) {
+   unless ( $i==$n_alt-1) {
+      print PYFILE "0, ";
+   }
+   else                    {
+      print PYFILE "1";
+   }
 }
+print PYFILE "])\n";
+print PYFILE "x = np.linalg.solve(a, b)\n";
+print PYFILE "print(x)\n";
+close(PYFILE);
+
+# Call python for math
+system("python $pyfile > $tmpfile");
+}
+
+
+
+
 
 sub equiv_hashes_from_list {
   my ( $ref )  = @_;
@@ -1397,37 +1722,39 @@ sub state_print { # print states and energies
 }
 
 sub mc_energy {
+   my $epsilon = 1e-15;
    my $a; my $b; my $emc = 0.0;
    my $fflow; my $bflow;
    my $sflow = 0.0; my $wflow = 0.0; my $nflow = 0.0;
    foreach $pair ( @s_edges ) {
       $a = $$pair[0]; $b = $$pair[1];
       $fflow = flow( $a, $b );  $bflow = flow( $b, $a);
-      print LOG "mc_energy: pair $a  $b  with flows $fflow  $bflow\n";
       $sflow +=  $fflow - $bflow; # negative net substrate transport targets more transport
    }
    foreach $pair ( @n_edges ) {
       $a = $$pair[0]; $b = $$pair[1];
       $fflow = flow( $a, $b );  $bflow = flow( $b, $a);
-      print LOG "mc_energy: pair $a  $b  with flows $fflow  $bflow\n";
+      #print LOG "mc_energy: pair $a  $b  with flows $fflow  $bflow\n";
       $nflow +=  $fflow - $bflow; # negative net substrate transport targets more transport
    }
    if ( $proof==1 ) {
       foreach $pair ( @w_edges ) {
          $a = $$pair[0]; $b = $$pair[1];
          $fflow = flow( $a, $b );  $bflow = flow( $b, $a);
-         print LOG "mc_energy: pair $a  $b  with flows $fflow  $bflow\n";
+         #print LOG "mc_energy: pair $a  $b  with flows $fflow  $bflow\n";
          $wflow +=  $fflow - $bflow; # negative net substrate transport targets more transport
       }
       if ($energy_function eq "symporter"){
-        $emc = -$sflow*( abs($sflow/$wflow) )**$alpha; #symporter
+          $emc = -$sflow*( (abs($sflow)+$epsilon)/(abs($wflow)+$epsilon) )**$alpha; #symporter
+          print LOG "$emc = -$sflow*( (abs($sflow)+$epsilon)/(abs($wflow)+$epsilon) )**$alpha\n";
       }
       elsif ($energy_function eq 'antiporter'){
-        $emc = $sflow*( abs($sflow/$wflow) )**$alpha; #antiporter
-      } else {$emc = -$sflow;}
-      print LOG "\nmc_energy: S flow = $sflow    W flow = $wflow    N flow = $nflow (for current trial)\n\n";
+          $emc = $sflow*( (abs($sflow)+$epsilon)/(abs($wflow)+$epsilon) )**$alpha; #antiporter
+      }
+      else {$emc = -$sflow;}
+      print LOG "\nmc_energy = $emc  S flow = $sflow    W flow = $wflow    N flow = $nflow (for current trial)\n\n";
    }
-   else {
+   else {  # not proofreading
      if ($energy_function eq "symporter"){
        $emc = -$sflow; #symporter
      }
@@ -1700,7 +2027,7 @@ sub matrix_to_csv {
     }
   print MATRIX_CSV "\n";
   }
-  close(MATRIX_CSV);
+  close(MATRIX_CSV) or die "Error! Cannot close";
 }
 
 #this script loads in adjacency matrix (in .csv format)from proof-maker
@@ -1718,14 +2045,14 @@ sub import_from_python {
     open my $fh2, "<", "$state_filename" or die "Could not open file '$state_filename' ";
     my $state_consistency_flag = <$fh2>;
     print LOG "state consistency $state_consistency_flag\n";
-    print DEBUG "state consistency $state_consistency_flag\n";
-    close $fh2;
+    #print DEBUG "state consistency $state_consistency_flag\n";
+    close $fh2 or die "Error! Cannot close";
 
     open $fh2, "<", "$transition_filename" or die "Could not open file '$transition_filename' ";
     my $transition_consistency_flag = <$fh2>;
     print LOG "transition consistency $transition_consistency_flag\n";
-    print DEBUG "transition consistency $transition_consistency_flag\n";
-    close $fh2;
+    #print DEBUG "transition consistency $transition_consistency_flag\n";
+    close $fh2 or die "Error! Cannot close";
 
     my $json_state;
     my $json_transition;
@@ -1733,11 +2060,11 @@ sub import_from_python {
     local $/; #Enable 'slurp' mode
     open my $fh, "<", "$state_filename.json" or die "Can't open file!";
     $json_state = <$fh>;
-    close $fh;
+    close $fh or die "Error! Cannot close";
 
     open $fh, "<", "$transition_filename.json" or die "Can't open file!";
     $json_transition = <$fh>;
-    close $fh;
+    close $fh or die "Error! Cannot close";
 
     my $json_ref_state_data = decode_json($json_state);#returns REFERENCES
     my $connected_states_ref = $json_ref_state_data; #copy of hash references to be used in other sub routines
@@ -1782,7 +2109,7 @@ sub initial_model {
     }
   }
 
-print LOG "model has been initialized!\n";
+  print LOG "model has been initialized!\n";
 }
 
 sub adjust_tied_barriers2 { # takes in perturbed_state, connected_states_ref, and energy_pertubation
@@ -1831,11 +2158,10 @@ sub load_config_settings {
     na_first => 0,
     nsteps => 1e4,
     dprint => 1e0,
-    n_beta => 2e2,
+    n_beta => 1,
     seed => 456789,
     demax => 1.0,
     alpha => 0.0,
-    beta_init => 1e1,
     fbeta => 1e3,
     tol => 0.3,
     pbeta_stay => 0.2,
@@ -1861,10 +2187,13 @@ sub load_config_settings {
     Sb_Wb_tied => 0,
     energy_function => "symporter",
     graph => 1,
+    b_min => 1e1,
+    b_max => 1e30,
+    temp_scale => 1.0,
   );
   my @required_parameters = ( # Required paramters to be in config file
     "proof", "na_first", # Simulation Parameters
-    "nsteps","dprint","n_beta","seed","demax","alpha","beta_init","fbeta","tol","pbeta_stay", # Monte Carlo Parameters
+    "nsteps","dprint","n_beta","seed","demax","alpha","fbeta","tol","pbeta_stay", # Monte Carlo Parameters
     "dmu_N","dmu_S","dmu_W","fmu_N","fmu_S","fmu_W","ebarslow","kzero","ebump", # Physical Parameters
     "tmpfile", "mcfile", "kfile", "datfile", "flowfile", "debugfile", "logfile", # output files
     "directory", #new directory for run
@@ -1873,6 +2202,8 @@ sub load_config_settings {
     "Sb_Wb_tied", # controls how "tied together Sb and Wb are"
     "energy_function", #which energy function to use (i.e. for symport or antiport)
     "graph", #graphs mc energy automatically
+    "b_min", "b_max", # min, max beta values
+    "temp_scale", # scaling factor for manual tempering schedule
   );
   my %config;
   Config::Simple->import_from( $config_file, \%config);
@@ -1903,21 +2234,21 @@ sub unit_test_tied_list{
            $test_energy2 = $connected_list_deref{$key}{$key_in_key2};
            if (abs($test_energy- $test_energy2) > 0.00001) {
              $test_fail_flag = 1;
-             print DEBUG "TEST FAILED! $list_label connected list is not equivalent. \n";
-             print DEBUG "key = $key, key_in_key = $key_in_key, key_in_key2 = $key_in_key2\n";
-             print DEBUG "energy = $test_energy, energy2 = $test_energy2 \n";
+             #print DEBUG "TEST FAILED! $list_label connected list is not equivalent. \n";
+             #print DEBUG "key = $key, key_in_key = $key_in_key, key_in_key2 = $key_in_key2\n";
+             #print DEBUG "energy = $test_energy, energy2 = $test_energy2 \n";
            }
          }
      }
   }
   if ($test_fail_flag == 1){
     print LOG "Failed unit test. Energies in $list_label connected list are NOT equivalent!\n";
-    print DEBUG "Failed unit test. Energies in $list_label connected list are NOT equivalent!\n";
+    #print DEBUG "Failed unit test. Energies in $list_label connected list are NOT equivalent!\n";
     Win32::MsgBox("$list_label Failed unit test. Energies in tied list not equivalent! See log for details.");
     exit;
   } else {
     print LOG "Passed unit test. Energies in $list_label connected list are equivalent!\n";
-    print DEBUG "Passed unit test. Energies in $list_label connected list are equivalent!\n";
+    #print DEBUG "Passed unit test. Energies in $list_label connected list are equivalent!\n";
   }
 
 }
@@ -1935,20 +2266,20 @@ sub unit_test_check_restored_energies {
      foreach $key_in_key (keys %{$dictionary1_deref{$key}}){
          if ( abs($dictionary1_deref{$key}{$key_in_key} - $dictionary2_deref{$key}{$key_in_key}) >0.00001) { #check if equal within tolerance
            $test_fail_flag = 1;
-           print DEBUG "TEST FAILED! $test_label\n";
-           print DEBUG "key = $key, key_in_key = $key_in_key\n";
-           print DEBUG "$dictionary1_deref{$key}{$key_in_key} != $dictionary2_deref{$key}{$key_in_key}\n";
+           #print DEBUG "TEST FAILED! $test_label\n";
+           #print DEBUG "key = $key, key_in_key = $key_in_key\n";
+           #print DEBUG "$dictionary1_deref{$key}{$key_in_key} != $dictionary2_deref{$key}{$key_in_key}\n";
          }
      }
   }
   if ($test_fail_flag == 1){
     print LOG "Failed unit test. Energies are NOT restored. $test_label\n";
-    print DEBUG "Failed unit test. Energies are NOT restored. $test_label \n";
+    #print DEBUG "Failed unit test. Energies are NOT restored. $test_label \n";
     Win32::MsgBox("$test_label Failed unit test. Energies have not been restored! See log for details.");
     exit;
   } else {
     print LOG "Passed unit test. Energies are restored. $test_label\n";
-    print DEBUG "Passed unit test. Energies are restored. $test_label\n";
+    #print DEBUG "Passed unit test. Energies are restored. $test_label\n";
   }
 }
 
@@ -1957,14 +2288,14 @@ sub print_energies {
   my $energy_label = $_[1];
   my %energy_dictionary_deref = %{$energy_dictionary_ref};
 
-  print DEBUG "Printing Energies for $energy_label...\n\n";
+  #print DEBUG "Printing Energies for $energy_label...\n\n";
 
   foreach $key (keys %energy_dictionary_deref){
-     print DEBUG "key = $key\n";
+     #print DEBUG "key = $key\n";
      foreach $key_in_key (keys %{$energy_dictionary_deref{$key}}){
-         print DEBUG "key = $key_in_key value = $energy_dictionary_deref{$key}{$key_in_key} \n";
+         #print DEBUG "key = $key_in_key value = $energy_dictionary_deref{$key}{$key_in_key} \n";
      }
-     print DEBUG "\n";
+     #print DEBUG "\n";
   }
   print LOG "\n";
 }
@@ -1985,20 +2316,20 @@ sub unit_test_tied_energy_difference {
      foreach $key_in_key (keys %{$dictionaryb_deref{$key}}){
          if ( abs( ($dictionaryb_deref{$key}{$key_in_key} - $dictionarya_deref{$key}{$key_in_key}) - ($tied_energy_difference) > 0.00001 ) ) {# check if equal within tolerance
            $test_fail_flag = 1;
-           print DEBUG "TEST FAILED! $test_label\n";
-           print DEBUG "key = $key, key_in_key = $key_in_key\n";
-           print DEBUG "(E after) $dictionaryb_deref{$key}{$key_in_key} - (E before) $dictionarya_deref{$key}{$key_in_key} != $tied_energy_difference \n";
+           #print DEBUG "TEST FAILED! $test_label\n";
+           #print DEBUG "key = $key, key_in_key = $key_in_key\n";
+           #print DEBUG "(E after) $dictionaryb_deref{$key}{$key_in_key} - (E before) $dictionarya_deref{$key}{$key_in_key} != $tied_energy_difference \n";
          }
      }
    }
      if ($test_fail_flag == 1){
        print LOG "Failed unit test. Energy differences are NOT equal. $test_label\n";
-       print DEBUG  "Failed unit test. Energy differences are NOT equal. $test_label\n";
+       #print DEBUG  "Failed unit test. Energy differences are NOT equal. $test_label\n";
        Win32::MsgBox("$test_label Failed unit test. Tied energy groupings have changed fixed values!See log for details.");
        exit;
      } else {
        print LOG "Passed unit test. Energy differences are equal. $test_label\n";
-       print DEBUG  "Passed unit test. Energy differences are equal. $test_label\n";
+       #print DEBUG  "Passed unit test. Energy differences are equal. $test_label\n";
      }
 
 }
@@ -2013,20 +2344,20 @@ sub unit_test_negative_energy {
      foreach $key_in_key (keys %{$dictionary_deref{$key}}){
          if ($dictionary_deref{$key}{$key_in_key} < 0) {
            $test_fail_flag = 1;
-           print DEBUG "TEST FAILED! $test_label\n";
-           print DEBUG "key = $key, key_in_key = $key_in_key\n";
-           print DEBUG "$dictionary_deref{$key}{$key_in_key} < 0\n";
+           #print DEBUG "TEST FAILED! $test_label\n";
+           #print DEBUG "key = $key, key_in_key = $key_in_key\n";
+           #print DEBUG "$dictionary_deref{$key}{$key_in_key} < 0\n";
          }
      }
    }
    if ($test_fail_flag == 1){
      print LOG "Failed unit test. Energy < 0.  $test_label\n";
-     print DEBUG  "Failed unit test. Energy < 0.  $test_label\n";
+     #print DEBUG  "Failed unit test. Energy < 0.  $test_label\n";
      Win32::MsgBox("$test_label Failed unit test. Energy < 0. See log for details.");
      exit;
    } else {
      print LOG "Passed unit test. Energy > = 0. $test_label\n";
-     print DEBUG  "Passed unit test. Energy  > = 0. $test_label\n";
+     #print DEBUG  "Passed unit test. Energy  > = 0. $test_label\n";
    }
 
 }
@@ -2040,7 +2371,7 @@ sub set_reference_state {
 
   if (defined $top_level_key && exists $dictionary_deref{$top_level_key}){
      $key = $top_level_key;
-     print DEBUG "$key is a top level key in the dictionary and will be the reference key.\n";
+     #print DEBUG "$key is a top level key in the dictionary and will be the reference key.\n";
   } else {
      $key = @dictionary_keys[rand @dictionary_keys];
      print DEBUG "random state chosen to be reference key = $key\n";
@@ -2052,10 +2383,12 @@ sub set_reference_state {
   return @reference_connected_list;
 }
 
+# WARNING! this has caused issues w/ random number generation!
+# could be using system call to affect rand()/srand()?? need to test
 #plots mc_energies using chart::gnuplot module
 sub plot_mc_energies {
 
-  my $sub_datafile = $_[0];#evolver_rates.dat by default
+  my $sub_datafile = $_[0]; #evolver_rates.dat by default
   #my $current_time = calc_wall_clock($start_time);
 
   #make a new chart. note that gnuplot path needs to be specified in Windows
@@ -2084,4 +2417,352 @@ sub calc_wall_clock {
   my $end_time = time();
   my $run_time = $end_time - $start_time;
   return $run_time;
+}
+
+sub avg_emc {
+  $old_dmu = $dmu_N;
+  $dmu_fin = -2;
+  $dmu_init = -6;
+  $n_inc = 10;
+  $analysis = "vary_dmu_N";
+  $dmu_inc = ( $dmu_fin - $dmu_init ) / $n_inc;
+  #$emc_total = 0;
+  @emc_data = ();
+  # save old data to restore
+
+  for ($count=0; $count<$n_inc+1; $count++){
+    if ($count == $n_inc){
+      $dmu_now = $old_dmu;  # reset
+    } else {
+      $dmu_now = $dmu_init + $count*$dmu_inc;
+    }
+    if ( $analysis eq "vary_dmu_N" ) {  # update energy terms
+       print LOG "\nAnalysis type: $analysis\n";
+       $dmu_N = $dmu_now;
+       $energy_terms{'No'} = -$fmu_N*$dmu_N;
+       $energy_terms{'Ni'} = (1-$fmu_N)*$dmu_N; # Note that 1 - fmu_N -(-fmu_N) = 1
+       foreach $key ( keys(%energy_terms) ) { print LOG "energy_term $key = $energy_terms{$key}\n"; }
+    }
+    foreach $state (@states) {  # update non-equilibrium energies for each state
+       $name = $$state[0];
+       $energies_noneq{$name} = energy_noneq( \@$state );
+       print LOG "State name and indices: @$state   E_noneq = $energies_noneq{$name}\n";
+    }
+
+    %ebar_hash = (); #testing
+    $i=0;
+    foreach $sa (@states) {
+       $j=0;
+       $diag[$i] = 0;
+       foreach $sb (@states) {
+          $a_name = $$sa[0];
+          $b_name = $$sb[0];
+          if ( $i<$j ) {
+              $pairname = $a_name."_AND_".$b_name;
+          }
+          else         { # pairname INDEPENDENT of order
+              $pairname = $b_name."_AND_".$a_name;
+          }
+          $d = distance( \@$sa, \@$sb, \@unit_lengths ); # passing references
+          if ( $d==1 ) { # transitions only allowed between 'nearest-neighbor' states
+             $energy_a = $energies{$a_name};
+             $energy_b = $energies{$b_name};
+             $ddmu = 0.0;
+             if ( is_binding( $a_name, $b_name ) ) { # rate adjustments based on ligand concentration - binding only
+                $dmu_a = $energies_noneq{$a_name}; # log of concentration diff of a vs. equil
+                $dmu_b = $energies_noneq{$b_name}; # log of concentration diff of a vs. equil
+                $ddmu = $dmu_a - $dmu_b;
+                #print LOG "New rate: ddmu = $ddmu    $a_name  =>  dmu_a = $dmu_a  ...  $b_name => dmu_b = $dmu_b\n";
+             }
+             $emax = 0.5*(  $energy_a + $energy_b + abs( $energy_a - $energy_b ));
+             $ebar = $emax + $ebars{$pairname}; # transition state energy
+             $ebar_hash{$pairname} = $ebar; #TESTING
+             $rateij = exp( $ddmu ) * $kzero * exp( -( $ebar - $energy_a ) ); # simple Arrhenius rate * ligand conc
+          }
+          else { # distance not 1, so rate is zero
+             $rateij = 0.0;
+             $edges[$i][$j] = 0;
+          }
+          $rates[$i][$j] = $rateij;
+          $matrix[$i][$j] = $rates[$i][$j]; # what will actually be used to solve
+          $diag[$i] -= $rateij;
+          $j++;
+       }
+       $matrix[$i][$i] = $diag[$i];
+       $rates[$i][$i] = $diag[$i];
+       $matrix[$i][@states-1] = 1; # for probability constraint
+       $i++;
+    }
+
+    ### Make alternative rate matrix needed to find populations
+    #print LOG "\nConstructing alt_rates matrix\n";
+    for ( $i=0; $i<$n_alt; $i++ ) { # zero out rates because they're re-summed each MC step
+       for ( $j=0; $j<$n_alt; $j++ ) {
+          $alt_rates[$i][$j] = 0.0;
+       }
+    }
+    # sum over all rates from equivalent states
+    for ( $i=0; $i<$nstates; $i++ ) { # run through original indices
+       $ialt = equiv_state($i);
+       for ( $j=0; $j<$nstates; $j++ ) {
+          $jalt = equiv_state($j);
+          #print LOG "Making new matrix states $i = $istate and $j = $jstate\n";
+          unless ( $i==$j) { $alt_rates[$ialt][$jalt] += $rates[$i][$j]; }
+       }
+    }
+    # add diagonal elements
+    for ( $i=0; $i<$n_alt; $i++ ) { # zero out rates because they're re-summed each MC step
+       $sum = 0.0;
+       for ( $j=0; $j<$n_alt; $j++ ) {
+          unless ( $i==$j) { $sum -= $alt_rates[$i][$j]; }
+       }
+       $alt_rates[$i][$i] = $sum;
+    }
+    # print the alt rates matrix and define the matrix for solution
+    #print LOG "\n\nPresenting the alternate rate matrix ....\n";
+    for ( $i=0; $i<$n_alt; $i++ ) { # zero out rates because they're re-summed each MC step
+       for ( $j=0; $j<$n_alt; $j++ ) {
+          #printf("%5.2e  ", $alt_rates[$i][$j]);
+          if ( $j < $n_alt-1 ) {
+             $alt_matrix[$i][$j] = $alt_rates[$i][$j];
+          }
+       }
+       $alt_matrix[$i][$n_alt-1] = 1; # for probability constraint
+       #print LOG "\n";
+    }
+    #print LOG "\n\n";
+
+
+    # write rates file for inspection
+    open(KFILE, "> $kfile") or die "Error! Cannot open";
+    for ( $i=0; $i<@states; $i++ ) {
+       for ( $j=0; $j<@states; $j++ ) {
+          printf KFILE "%8.4e  ", $rates[$i][$j];
+          #printf DEBUG "%8.4e  ", $rates[$i][$j];
+       }
+       print KFILE "\n\n";
+    }
+    close(KFILE) or die "Error! Cannot close";
+
+
+    # Call pdl matrix solver function (used instead of python for better performance)
+    call_pdl( \@alt_matrix, $tmpfile);  # carefull! could error out
+
+    # retrieve steady-state probabilities for alt states
+    @alt_pss = ();
+    open(TMP, "$tmpfile") or die "Error! Cannot open";
+    while (<TMP>) {
+       $_ =~ s/\[/ /;
+       $_ =~ s/\]/ /;
+       @vals = split ' ', $_;
+       #print LOG "reading line in tmpfile: @vals\n";
+       foreach $val ( @vals ) {
+          $x = 1.0*$val;
+          push @alt_pss, $x;
+       }
+    }
+    print LOG "steady state values: @alt_pss\n\n";
+    close(TMP) or die;
+
+    # assign steady-state probabilities to all states
+    @pss = ();
+    $count = 0;
+    for ( $i=0; $i<$nstates; $i++ ) { # run through original indices
+       $ialt = equiv_state($i); # index of reference state with same prob
+       $pss[$i] = $alt_pss[$ialt];
+       #print LOG "State $i inherits prob $alt_pss[$ialt] from state $ialt\n";
+       if ($pss[$i] == 0){
+          $count += 1;
+       }
+    }
+    if ($count == scalar @pss) {
+       print LOG "Error in solving rate matrix: all SS probabilities = 0\n";
+       print "Error in solving rate matrix: all SS probabilities = 0\n";
+       exit;
+    }
+
+
+    @energy_info = mc_energy ();
+
+    if ($count != $n_inc){  # don't count reset value
+      @emc_data[$count] = $energy_info[0];  # keep track of all emc data points
+    }
+
+  }
+  $emc_average = statistics(\@emc_data, 3);
+  #print DEBUG "using emc average = $emc_average\n";
+  return $emc_average;
+
+}
+
+sub statistics {
+  my $data_ref = $_[0];
+  my $select = $_[1]; #use to select type of statistics (i.e. averaging)
+  my @data = @{$data_ref};
+
+  if ($select == 1){
+    #print DEBUG "using geo avg\n";
+    $geo_avg = geometric_avg($data_ref);
+    return $geo_avg;
+  } elsif ($select == 2){
+    #print DEBUG "using modified arith avg\n";
+    $avg = modified_avg($data_ref);
+    return $avg;
+  } elsif ($select == 3){
+    #print DEBUG "using median\n";
+    $avg = data_median($data_ref);
+    return $avg;
+  } elsif ($select == 4){
+    #print DEBUG "using tanh\n";
+    $avg = tanh_avg($data_ref);
+    return $avg;
+  } else {
+    #print DEBUG "using arith avg";
+    $avg = arithmentic_avg($data_ref);
+    ($var, $std_dev) = var_std($data_ref,$avg);
+    return $avg;
+  }
+
+
+}
+
+sub arithmentic_avg {
+  my $data_ref = $_[0];
+  my @data = @{$data_ref};
+  my $total_sum = 0;
+  my $N = scalar @data;
+  # arithmentic mean
+  for $val (@data){
+      $total_sum = $total_sum + $val;
+  }
+  $avg = $total_sum/$N;
+  return $avg;
+}
+
+sub geometric_avg {
+  my $data_ref = $_[0];
+  my @data = @{$data_ref};
+  my $geo_prod = 1;
+  my $N = scalar @data;
+  my $neg_count = 0;
+  # geometric mean
+  for $val (@data){
+      #print DEBUG "val = $val geo_prod = $geo_prod\n";
+      if ($val < 0){
+        $neg_count = $neg_count + 1;
+      }
+      $geo_prod = $geo_prod*$val;
+      #print DEBUG "geo_prod after = $geo_prod \n";
+  }
+  $geo_avg = $geo_prod**(1/$N);
+  if ($neg_count >= $N/2 || $geo_prod < 0){
+    #print DEBUG "all negative!\n";
+    $geo_avg = -1*$geo_avg;
+  }
+  return $geo_avg;
+}
+
+sub var_std {
+  my $data_ref = $_[0];
+  my $avg = $_[1];
+  my @data = @{$data_ref};
+  $N = scalar @data;
+  $var_sum = 0;
+
+  for $val (@data){
+    $var_sum = $var_sum + (($val - $avg)**2);
+  }
+  $var = $var_sum/$N;
+  $std_dev = $var**(0.5);
+  return $var, $std_dev;
+
+}
+
+# inputs an array (ref) of numbers, outputs a log arithmetic average
+sub modified_avg {
+  my $data_ref = $_[0];  # data array reference
+  my @data = @{$data_ref};  # de-reference array
+  my $N = scalar @data;  # number of items in array
+  my $sum = 0;
+
+  for $val (@data){
+    #print DEBUG "val = $val\n";  # for debugging
+    $sum = $sum + (sign($val) * (log(abs($val))));  # keep sign while summing log(|val|)
+    #print DEBUG "sum = $sum\n";  # for debugging
+  }
+  $avg = (1/$N) * $sum;
+  #print DEBUG "modified avg = $avg\n";  # for debugging
+  $avg = sign($avg) * exp($avg);  # keeping sign and convert log scale to linear scale
+  #print DEBUG "exp avg = $avg\n";  # for debugging
+
+  return $avg;
+}
+
+# inputs an array ref of data and ouputs the median
+sub data_median {
+  my $data_ref = $_[0];  # data array reference
+  my @data = @{$data_ref};  # de-reference array
+  my $N = scalar @data;  # number of items in array
+  my @sorted_data = sort{$a <=> $b}(@data);  # 'space ship' operator for numerical sort
+  my $med = 0;
+
+
+  if ($N % 2 == 0){  # even number of elements
+  #print DEBUG "even num elements\n";
+    $med = ($sorted_data[($N/2)] + $sorted_data[($N/2) -1])/2;
+  } else {
+    #print DEBUG "odd num elements\n";
+    $med = $sorted_data[($N-1)/2];
+  }
+  return $med;
+}
+
+# inputs an array ref of data and outputs the arithmetic avg using tanh
+sub tanh_avg {
+  my $data_ref = $_[0];  # data array reference
+  my @data = @{$data_ref};  # de-reference array
+  my $N = scalar @data;  # number of items in array
+  my $sum = 0;
+  my $eps = 1*(10**(-4));  # target mc energy (parameter) for every condition being averaged
+
+  for $val (@data){
+    #print DEBUG "val = $val\n";  # for debugging
+    $tanh = tanhx($val/$eps);
+    #print DEBUG "tanh x = $tanh \n";
+    $sum = $sum + (tanhx($val/$eps));
+    #print DEBUG "sum = $sum\n";  # for debugging
+  }
+  $avg = (1/$N) * $sum;
+  #print DEBUG "avg = $avg\n";  # for debugging
+  #$avg = arctanhx($avg/$eps);  # convert back to linear scale
+  #print DEBUG "converted arctanh avg = $avg\n";  # for debugging
+
+  return $avg;
+}
+
+
+# inputs a number and outputs the number's sign (-1,0, or 1)
+sub sign{
+  my $num = $_[0];
+  if ($num > 0){
+    return 1;
+  } elsif($num < 0){
+    return -1;
+  } else {
+    return 0;
+  }
+}
+
+# inputs a number and outputs tanh of that number
+sub tanhx{
+  my $x = $_[0];
+  my $solution = (exp(2*$x) - 1)/(exp(2*$x) + 1);  # simplified exponential form of tanh(x)
+  return $solution;
+}
+
+# inputs a number and outputs arctanh of that number
+sub arctanhx{
+  my $x = $_[0];
+  my $solution = (1/2)*log(abs((1+$x)/(1-$x)));  # log form of arctanh(x)
+  return $solution;
 }

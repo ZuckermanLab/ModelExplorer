@@ -66,7 +66,7 @@ def create_cluster(matrix, minima):
         return minima
     #square_dist_matrix = squareform(dist)
     Z = linkage(dist, 'complete')  # complete clustering
-    fig = plt.figure(figsize=(20, 10))
+    fig = plt.figure(figsize=(30, 10))
     dn = dendrogram(
         Z,
         truncate_mode = 'level',
@@ -110,9 +110,9 @@ def graph_mc_data(x,y, markers={}):
         ax.plot(x2,y2, ls="", marker="o", label="Models below threshold", color='black')
         plt.figtext(.75, .80, "%s (of %s) Models below E_mc = %.1E" % (
             len(markers), len(x), (max(y2)+0.1*max(y2))), fontsize=30, ha='center')
-    plt.title('Monte Carlo Energy Trajectory', fontsize=34)
-    plt.ylabel('MC Energy', fontsize=30)
-    plt.xlabel('MC Step', fontsize=30)
+    plt.title('Monte Carlo Energy Trajectory', fontsize=30)
+    plt.ylabel('MC Energy', fontsize=26)
+    plt.xlabel('MC Step', fontsize=26)
     ax.plot(x,y,  linewidth=2, color='orange')
     ax.yaxis.set_major_formatter(mtick.FormatStrFormatter('%.1e'))
     ax.xaxis.set_major_formatter(mtick.FormatStrFormatter('%.1e'))
@@ -121,7 +121,7 @@ def graph_mc_data(x,y, markers={}):
     #    ax.annotate('(%s)' % xy[0], xy=xy, textcoords='data')
     plt.legend(fontsize=30)
     plt.margins(x=0.01, y=0.01)
-    plt.ylim([-.75e-4, .75e-4])
+    plt.ylim([-1e-4, 1e-4])
     plt.savefig("energy_trajectory_with_minima.png", format='png', bbox_inches='tight')
     plt.clf()
 
@@ -219,16 +219,21 @@ def normalize_flows(a):
     '''
     Normalizes an array of flows
     '''
-    a_norm = np.zeros_like(a)
-    for i in range(np.shape(a)[0]):  # for each row vector
-        x_max = np.max(a[i])
-        x_min = np.min(a[i])
-        x_ptp = x_max - x_min
-        for j in range(a[i].size):  # for each element in row vector
-            a_norm[i][j] = 2*(a[i][j]-x_min)/(x_ptp) -1
+    #a_max = np.max(a)
+    #b = np.linalg.norm(a*1.0/a_max, axis=1, keepdims=True)*a_max
+    
+    b = np.linalg.norm(a, axis=1, keepdims=True)
+    zero_rates = np.where(b == 0)[0]
+    if zero_rates == []:
+        print("zeros in normalization matrix: %s" % zero_rates)
+    a2 = np.delete(a, zero_rates, axis=0)
+    b2 = np.linalg.norm(a2, axis=1, keepdims=True)
+    zero_rates2 = np.where(b2 == 0)[0]
+    #print(zero_rates2)
+    a_norm = a2/b2   
+    #print(a_norm)
     return a_norm
 
-    
 
 
 
@@ -251,17 +256,17 @@ def calculate_s_and_w_flows(flow_data):
     pass
 
 
-def find_proofreading(s_flows, w_flows, minima_indices, ddg=1.0, n=1):
+def find_proofreading(s_flows, w_flows, minima_indices, ddg=1.0, n=1, thresh = 1e-10):
     proofreading_models = []
     for i in minima_indices:  # list of indices of models below threshold
         if w_flows[i] != 0:
-            if (s_flows[i] / w_flows[i]) > (n*np.exp(ddg)):
+            if ( (abs(s_flows[i] / w_flows[i]) > (n*np.exp(ddg)) and s_flows[i] > thresh)):
                 proofreading_models.append(i)
     return proofreading_models
 
 
 ### Package all data processing (before clustering) into one subroutine
-def process_data(datafile, graph=0, proof=0, threshold = 0):
+def process_data(datafile, graph=0, proof=0, threshold = 0, proof_thresh = 1e-10):
     #print("processing data...\n")
     data = import_data(datafile, proof)  # cluster_data.dat is [mc_n, mc_e,...flows...]
     mc_n, mc_e, flow_data, n_flow, s_flow, w_flow = slice_array(data)
@@ -275,48 +280,167 @@ def process_data(datafile, graph=0, proof=0, threshold = 0):
     n_proof_models = 0
     proof_ratio = 0.0
     ddg_sw = 1.0
-    n = 10
+    proof_n = 10
+    proof_t = proof_thresh
+
     if proof == 1:
+        proof_thresh2 = 1e-05
+        min_idx2 = find_proofreading(
+            s_flow, w_flow, minima_indices, ddg=ddg_sw, n=proof_n, thresh=proof_thresh2)
+
         minima_indices = find_proofreading(
-            s_flow, w_flow, minima_indices, ddg=ddg_sw, n =10 )
+            s_flow, w_flow, minima_indices, ddg=ddg_sw, n =proof_n, thresh = proof_t )
         n_proof_models = len(minima_indices)
         proof_ratio = 1.0*n_proof_models/n_models
+
+
+        proof_thresh3 = 1e-15
+        min_idx3 = find_proofreading(
+            s_flow, w_flow, minima_indices, ddg=ddg_sw, n=proof_n, thresh=proof_thresh3)
     minima_models_list = indices_to_models(minima_indices, mc_n)
+    minima_models_list2 = indices_to_models(min_idx2, mc_n)
+    minima_models_list3 = indices_to_models(min_idx3, mc_n)
     minima_flows = get_flows(flow_data, minima_indices)
-    old_processed_flows = normalize_and_threshold_flows(minima_flows)
+    #old_processed_flows = normalize_and_threshold_flows(minima_flows)
     processed_flows = normalize_flows(minima_flows)
+    #processed_flows = processed_flows[:int(2e6/500)]  # threshold on/off
 
-    correlation = acf(processed_flows)
-    #print(correlation)
 
+    # def vector_autocorrelate(t_array):
+    #     n_vectors = np.shape(t_array)[0]
+    #     # correlate each component indipendently
+    #     acorr = np.array([np.correlate(t_array[:, i], t_array[:, i], 'full')
+    #                       for i in range(40)])[:, n_vectors-1:]
+    #     # sum the correlations for each component
+    #     acorr = np.sum(acorr, axis=0)
+    #     # divide by the number of values actually measured and return
+    #     acorr /= (n_vectors - np.arange(n_vectors))
+    #     return acorr
+
+    # # testing ACF for only good models at fixed min temp
+    # # make sure looking at all models...
+    # if np.shape(data)[0] == np.shape(processed_flows)[0]:
+    #     print("looking at all samples\n")
+    #     temp_period = 2000  # how many mc steps tempering cycle is
+    #     initial_step_at_temp = 500  # first mc step at desired temp
+    #     print_index = 500  # data printed every 500 mc steps
+    #     good_models = range(int(500/500),np.shape(processed_flows)[0],int(2000/500))
+    #     processed_flows2 = np.zeros_like(processed_flows)
+    #     negative_emc_models = []
+    #     for i, j in enumerate(good_models):
+    #         processed_flows2[int(i)] = processed_flows[int(j)][:]
+    #         negative_emc_models.append(mc_e[int(j)])
+    #     processed_flows3 = np.delete(processed_flows2, np.s_[len(good_models):], axis=0)
+
+    #     #print(len(good_models))
+    #    # print(np.shape(processed_flows3)[0])
+    #     #print(negative_emc_models)
+    #     #print("selected models below mc e = 0: %s" % sum(n > 0 for n in negative_emc_models))
+    #     correlation = acf(processed_flows3)
+    #     # correlation = vector_autocorrelate(processed_flows)
+    # else:
+    #     correlation = acf(processed_flows)
+    #     # correlation = vector_autocorrelate(processed_flows)
+    
+
+    # correlation = vector_autocorrelate(processed_flows)
+
+
+
+    #correlation = acf(processed_flows)
+    #print("ACF[0] = %s" % correlation[0])
     if graph == 1:  # graph mc energy
         graph_mc_data(mc_n, mc_e, minima_indices)
-        plt.figure(figsize=(5,5))
-        plt.plot(correlation)
-        #half_index = (np.abs(correlation - 0.5)).argmin()
-        #plt.plot(half_index, correlation[half_index], marker='o', markersize=3, color="red", label = half_index)
-        #plt.legend()
-        plt.hlines(y=0.5, xmin=0, xmax=len(correlation)-1, linestyles='dotted')
-        plt.title("Autocorrelation of MC Run")
-        plt.ylabel("Autocorrelation")
-        plt.xlabel("Lag time [500 MC steps]")
-        #plt.xlim(0,25)
-        plt.savefig("mc_auto_correlation.png", format='png', bbox_inches='tight')
+        # fig = plt.figure(figsize=(25, 10))
+        # ax = fig.add_subplot(211)
+        # x = np.arange(correlation.shape[0])
+        # #x = 500*x
+        # ax.plot(x,correlation)
+        # plt.minorticks_on()
+        # #half_index = 500*(np.abs(correlation - 0.5)).argmin()
+        # #zero_index = 500*(np.abs(correlation - 0.0)).argmin()
+        # #ax.plot(half_index, correlation[int(half_index/500)], marker='o', markersize=7, color="red", label = half_index)
+        # #ax.plot(zero_index, correlation[int(zero_index/500)], marker='o',
+        #          #markersize=7, color="green", label=zero_index)
+        # plt.legend()
+        # #ax.hlines(y=0.5, xmin=0, xmax=len(correlation)-1, linestyles='dotted')
+        # #ax.hlines(y=0, xmin=0, xmax=len(correlation)-1, linestyles='dotted')
+        # plt.title(
+        #     "Autocorrelation of MC Run\n(MCn=5e6, seed=456789, demax=0.6, b_low=125, b_hi=1450, b_inc=100, b_dec=325)", size=14)
+        # plt.ylabel("Autocorrelation", size=12)
+        # #plt.xlabel("Lag time", size=12)
+        # plt.xlim(0,10)
+        # plt.ylim(-1,1)
+        # #ax.yaxis.set_major_formatter(mtick.FormatStrFormatter('%.1e'))
+        # ax.xaxis.set_major_formatter(mtick.FormatStrFormatter('%.1e'))
+        # ax.tick_params(axis='both', which='major', labelsize=10)
+        # ax.tick_params(axis='both', which='minor', labelsize=8)
+
+        # plt.savefig("mc_auto_correlation.png", format='png', bbox_inches='tight')
+        fig = plt.figure()
+        plt.plot(minima_models_list2, np.arange(len(minima_models_list2)),
+                label="abs(s/w flow) > %s*exp(%s)) & s flow > %s" % (proof_n, ddg_sw, proof_thresh2))
+        plt.plot(minima_models_list, np.arange(len(minima_models_list)),
+                label="abs(s/w flow) > %s*exp(%s)) & s flow > %s" % (proof_n, ddg_sw, proof_thresh))
+
+        plt.plot(minima_models_list3, np.arange(len(minima_models_list3)),
+                label="abs(s/w flow) > %s*exp(%s)) & s flow > %s" % (proof_n, ddg_sw, proof_thresh3))
+        plt.ylabel("Number of 'good' models")
+        plt.xlabel("MC step number")
+        plt.title("Number of 'good' models during an MC run")
+        plt.legend(loc='best')
+        plt.show()
+        plt.savefig("good_models_mc_run.png",
+                    format='png', bbox_inches='tight')
+
     if proof == 0:
         report = "Total Models: %s\nModels below MC energy threshold (%s) : %s, Ratio: %s\n" % (
             n_models, thresh, n_thresh_models, thresh_ratio)
     else:
         report = "Total Models: %s\nModels below MC energy threshold (%s) : %s, Ratio: %s\nModels above proofreading threshold %s*(e^%s): %s, Ratio: %s" % (
-            n_models, thresh, n_thresh_models, thresh_ratio, n, ddg_sw, n_proof_models, proof_ratio)
+            n_models, thresh, n_thresh_models, thresh_ratio, proof_n, ddg_sw, n_proof_models, proof_ratio)
     return processed_flows, minima_models_list, report
 
+def model_correlation(norm_flows, model_list, thresh, max_d=2.5e6):
+    dist_mat = squareform(pdist(norm_flows, metric='euclidean'))
+    #print(dist_mat.shape)
+    n = int(dist_mat.shape[0])
+    avg = []
+    std_err = []
+    count = []
+    
+    if not model_list:
+        print("no models found. avg = 2.5e6 +/- 0")
+        avg = [max_d] * len(thresh)
+        std_err = [0.0] * len(thresh)
+        count = [0] * len(thresh)
+    else:
+        for t in thresh:
+            d = []
+            for i in np.arange(n):
+                # find first element over threshold
+                idx = np.argmax(dist_mat[i, i:] > t)
+                if idx == 0 or np.isnan(idx):  # if there is no model > thresh
+                    d.append(int(model_list[n-1]-model_list[i]))  # distance = distance to last model
+                else:
+                    d.append(model_list[int(idx + i)]-model_list[i])  
+            # if not d:  # if empty (no models)
+            #     d.append(0.0)
+            #     count.append(0)
+            # else:
+            #     count.append(int(len(d)))
+            count.append(int(len(d)))
+            dist = np.asarray(d)
+            avg.append(float(np.average(dist)))
+            std_err.append(float(np.std(dist)/np.sqrt(dist.shape[0])))
+    return avg, std_err, count
 
 ### Compares each consecutive model in dataset1 with models in dataset2
 ### to find the minimum distance
 def compare_two_runs(datafile1, datafile2):
     #print("comparing %s to %s...\n" % (datafile1, datafile2))
-    processed_flows1, minima_models_list1, report1 = process_data(datafile1)
-    processed_flows2, minima_models_list2, report2 = process_data(datafile2)
+    processed_flows1, minima_models_list1, report1 = process_data(datafile1, proof=1)
+    processed_flows2, minima_models_list2, report2 = process_data(datafile2, proof=1)
     # cdist creates a distance matrix between all elements in two matrices
     # np.min on axis 1 finds the min for for each col (each model in run1)
     mindist = np.min(spatial.distance.cdist(processed_flows1, processed_flows2), axis=1)
@@ -328,9 +452,12 @@ def compare_two_runs(datafile1, datafile2):
 def plot_two_histograms(run1_data, run2_data):
     #print("graphing histograms...\n")
     fig = plt.figure(figsize=(30, 10))
-    plt.suptitle("Comparing Models of Two Runs (under the same conditions)")
+    plt.suptitle(
+        "Comparing Models of Two Runs\n(demax = 0.6, temp scale = 1, mc n = 5e6) vs (demax = 1, temps scale = 1, mc n = 3e6)")
+    
 
     ax1 = fig.add_subplot('121')  # top left histogram (run1)
+    ax1.tick_params(axis='x', which='major', labelsize=10)
     ax1.title.set_text('Run1 vs Run2')
     ax1.set_ylabel('Frequency')
     ax1.set_xlabel('Minimum Distance (run1 model to run2 model)')
@@ -340,10 +467,12 @@ def plot_two_histograms(run1_data, run2_data):
         bin_step1 = 1
     ax1.hist(run1_data, bins=bin_size1)
     ax1.set_xticks(np.arange(min(run1_data), max(run1_data)+bin_step1, bin_step1))  # use arrange instead of range to handle floats
-    ax1.xaxis.set_major_formatter(mtick.FormatStrFormatter('%.3f'))
+    ax1.xaxis.set_major_formatter(mtick.FormatStrFormatter('%.2f'))
+    ax1.tick_params(axis='y', which='minor', bottom=False)
     plt.figtext(.40,.85,"Run 1 has %s Models" % len(run1_data))
 
     ax2 = fig.add_subplot('122')  # top right histogram (run2)
+    ax2.tick_params(axis='x', which='major', labelsize=10)
     ax2.title.set_text('Run2 vs Run1')
     ax2.set_ylabel('Frequency')
     ax2.set_xlabel('Minimum Distance (run2 model to run1 model)')
@@ -354,8 +483,10 @@ def plot_two_histograms(run1_data, run2_data):
         bin_step2 = 1
     ax2.hist(run2_data, bins=bin_size2)
     ax2.set_xticks(np.arange(min(run2_data), max(run2_data)+bin_step2, bin_step2))  # use arrange instead of range to handle floats
-    ax2.xaxis.set_major_formatter(mtick.FormatStrFormatter('%.3f'))
+    ax2.xaxis.set_major_formatter(mtick.FormatStrFormatter('%.2f'))
+    ax2.tick_params(axis='y', which='minor', bottom=False)
     plt.figtext(.825,.85,"Run 2 has %s Models" % len(run2_data))
+    #plt.show()
     plt.savefig("run_comparison_histogram.png", format='png', bbox_inches='tight')
 
 
@@ -377,26 +508,6 @@ def find_outlier_models(mindist, model_list, thresh, below=False):
     return list(outlier_models)
 
 
-# def autocorrelate(a):
-#     n = np.shape(a)[0]  # number of 'rows' = number of time steps
-#     auto_corr = np.zeros(n)
-#     print(n)
-#     for t in range(n-1):
-#         #print(t)
-#         sum = 0.0
-#         num = 0.0
-#         dem = 0.0
-#         #factor = (1.0)/(n-t)
-#         factor = 1.0
-#         for i in range(n-1-t):
-#             num += (factor) * (np.dot((a[i] - np.mean(a)),(a[i+t] - np.mean(a))))
-#             dem += (factor) * (np.dot((a[i] - np.mean(a)),(a[i] - np.mean(a))))
-#             #sum += factor * (num/dem)
-#         sum = num/(1.0*dem)
-#         print(sum)
-#         auto_corr[t] = sum
-#     return auto_corr
-
 def acf(data):
     '''
     Calculates the normalized Autocorrelation function (ACF)
@@ -409,8 +520,8 @@ def acf(data):
     Notes: CF_k = <(x(t)-x.mean).(x(t+k)-x.mean)> / <(x(t)-x.mean).(x(t)-x.mean)>
     where k is the lag time, and < > denotes the average over t. 
     '''
+
     N = np.shape(data)[0]
-    #N = data.size
     mean = np.mean(data)
     acf = np.zeros(N)
 
@@ -421,12 +532,13 @@ def acf(data):
     den = den/N
 
     # calculate num = <(x(t)-x.mean).(x(t+k)-x.mean)>
-    for k in range(N):  # k = 0 to N-1
+    for k in range(N):  # k = 0 to N-1 (lag time)
         num = 0.0
-        for t in range(N-k):
-            num = num + np.dot((data[t]-mean), (data[t+k]-mean))
+        for t in range(N-k):  # for t = 0 to N-k-1 (window)
+            num = num + np.dot((data[t]-mean), (data[t+k]-mean)) 
         num = num/(N-k)
-        acf[k] = num/den
+        acf[k] = num/den   
+
     return acf
 
 
@@ -439,10 +551,13 @@ def acf(data):
 def cluster_and_analyze_one_run(datafile, analyze=None, graph=1, proof=0, threshold=1e+100):
         print("clustering and analyzing one run: %s\n" % datafile)
         start_time = time.time()  # testing for runtime data
+        print("processing data...\n")
         processed_flows, minima_models_list, report = process_data(
             datafile, graph=graph, proof=proof, threshold=threshold)
+        print("clustering data...\n")
         cluster_models = create_cluster(processed_flows, minima_models_list)
         if analyze == 'Run1':
+            print("analyzing models...\n")
             analyze_models(cluster_models)
         runtime = time.time()-start_time  # testing for runtime data
         print(report)
@@ -475,11 +590,62 @@ def compare_and_analyze_two_runs(datafile1, datafile2, thresh, analyze=None):
     print("Total Runtime: %s (s)" % runtime)
     print(time.strftime("%Y-%m-%d %H:%M"))
 
+def compare_n_runs(run_list, thresh, flow_thresh = None):
+    start_time = time.time()
+    flow_thresh = [1e-10]
+    fig = plt.figure(figsize=(30, 10))
+    for f in flow_thresh:
+        d = []
+        for run in run_list:
+            processed_flows, minima_models_list, report = process_data(
+                run[0], graph=0, proof=1, threshold=1e100, proof_thresh=f)
+            avg, std_err, count = model_correlation(processed_flows, minima_models_list, thresh)
+            d.append((avg,std_err,run[1],count))
+        print("demax optimization")
+        for t in range(len(thresh)):
+            print("threshold: %s" % thresh[t])
+            x = []
+            y = []
+            y_err = []
+            for i in range(len(run_list)):
+                print("  demax: %s. avg: %s +/- %s. %s models" %
+                    (d[i][2], d[i][0][t], 2*d[i][1][t], d[i][3][t]))
+                if d[i][0][t] != 0:
+                    x.append(d[i][2])
+                    y.append(d[i][0][t])
+                    y_err.append(2*d[i][1][t])
+            # fmt='none',
+            plt.errorbar(x, y, y_err,  label="dist > %s & s flow > %s" %
+                        (thresh[t],f), linewidth=2.0)
+    plt.title(
+        "Demax and S flow threshold optimization (temp. scale = 1)\nusing models where abs(s/w flow) > 10*exp(1)) & s flow > x")
+    plt.ylabel("Avg. MC steps to model above dist. thresh.")
+    plt.xlabel("Demax")
+    plt.legend()
+    plt.yscale('log')
+    plt.grid(b=True, which='both', axis='both')
+    plt.tight_layout()
+    plt.show()
+    runtime = time.time()-start_time
+    print("Total Runtime: %s (s)" % runtime)
+    print(time.strftime("%Y-%m-%d %H:%M"))
+    
 
 def main():
-    cluster_and_analyze_one_run("cluster_data.dat", analyze=None,
-                                graph=1, proof=0, threshold=1e+100)  # "Run1" to analyze
-    #compare_and_analyze_two_runs("cluster_data.dat","cluster_data2.dat", .01)
+    # cluster_and_analyze_one_run("cluster_data.dat", analyze='None',
+      #                        graph=1, proof=1, threshold=1e+100)  # "Run1" to analyze
+    #compare_and_analyze_two_runs("cluster_data.dat","cluster_data_ts1_d1.dat", .01)
+    runs = [("cluster_data_d0_0_1.dat", 0.01),
+            ("cluster_data_d0_1.dat", 0.1),
+            ("cluster_data_d0_4v2.dat", 0.4),
+            ("cluster_data_d0_5.dat", 0.5),
+            ("cluster_data_d0_6v2.dat", 0.6),
+            ("cluster_data_d1.dat",1),
+            ("cluster_data_d1_25.dat",1.25)]
+            
+    thresh = [ 0.1, 0.25, 0.5, 0.75, 1.0]
+    #thresh = [0.5]
+    compare_n_runs(runs, thresh)
     pass
 
 if __name__ == "__main__":
