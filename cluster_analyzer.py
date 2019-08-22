@@ -5,7 +5,7 @@
 import numpy as np
 import sys
 from scipy.spatial.distance import pdist, squareform
-from scipy.cluster.hierarchy import dendrogram, linkage
+from scipy.cluster.hierarchy import dendrogram, linkage, fcluster
 from scipy.signal import argrelextrema, savgol_filter
 from scipy import spatial
 import networkx as nx
@@ -66,30 +66,39 @@ def create_cluster(matrix, minima):
         return minima
     #square_dist_matrix = squareform(dist)
     Z = linkage(dist, 'complete')  # complete clustering
-    fig = plt.figure(figsize=(30, 10))
-    dn = dendrogram(
-        Z,
-        truncate_mode = 'level',
-        p = 7,
-        color_threshold = 0.25,
-        distance_sort = 'ascending',
-        labels=minima,
-    )
+    fig = plt.figure(figsize=(75,50))
+    with plt.rc_context({'lines.linewidth': 1.5}):
+        dn = dendrogram(
+            Z,
+            truncate_mode = 'level',
+            p = 9,
+            color_threshold = 0.65,
+            distance_sort = 'ascending',
+            #no_labels = 'True'
+            labels = minima,
+            #labels=np.asarray(minima).astype(int),
+        )
     #dn = dendrogram(
         #Z,
         #distance_sort = 'ascending',
         #labels=minima,
     #)
-    plt.title('Model Hierarchy [truncated]', fontsize=34)
-    plt.ylabel('Cluster Distance', fontsize=30)
-    plt.xlabel('Model Number [MC step]', fontsize=30)
-    plt.figtext(.80,.85,"Found %s Models" % len(minima), fontsize=30, ha='center')
-    plt.tick_params(axis='both', which='major', labelsize=20)
+    plt.title('Clustering hierarchy (truncated)\nModels with enhanced selectivity', fontsize=38)
+    plt.ylabel('Cluster distance [Euclidean]', fontsize=34)
+    plt.xlabel('Model index [MC step.run]', fontsize=34)
+    #plt.figtext(.80,.85,"Found %s Models" % len(minima), fontsize=30, ha='center')
+    plt.tick_params(axis='both', which='major', labelsize=28)
     plt.margins(x=0.01, y=0.01)
+    #plt.tick_params(axis='x', which='major', labelsize=20)
+    #plt.xticks(fontsize=12)
     plt.savefig("model_heirarchy_cluster_complete.png", format='png', bbox_inches='tight')
+    #plt.show()
     leaves = dn['ivl']  # get leaves of cluster
-    cleaned_leaves = [x for x in leaves if str(x).isdigit()]  # remove truncated '(x)'
-    return(cleaned_leaves)
+    #print(leaves)
+    cleaned_leaves = [x for x in leaves if str(x).replace(
+        ".", "", 1).isdigit()]  # remove truncated '(x)'
+    #print(cleaned_leaves)
+    return(cleaned_leaves,Z)
 
 
 ### Plots the energy trajectory data w/ optional minima markers
@@ -219,8 +228,6 @@ def normalize_flows(a):
     '''
     Normalizes an array of flows
     '''
-    #a_max = np.max(a)
-    #b = np.linalg.norm(a*1.0/a_max, axis=1, keepdims=True)*a_max
     
     b = np.linalg.norm(a, axis=1, keepdims=True)
     zero_rates = np.where(b == 0)[0]
@@ -229,9 +236,7 @@ def normalize_flows(a):
     a2 = np.delete(a, zero_rates, axis=0)
     b2 = np.linalg.norm(a2, axis=1, keepdims=True)
     zero_rates2 = np.where(b2 == 0)[0]
-    #print(zero_rates2)
     a_norm = a2/b2   
-    #print(a_norm)
     return a_norm
 
 
@@ -246,7 +251,7 @@ def indices_to_models(index_list, reference_array):
     #print("index to model...")
     models_list = []
     models_list = reference_array[index_list]
-    models_list = [int(x) for x in models_list]  # convert to int for use as index
+    models_list = [x for x in models_list]  # convert to int for use as index ?
     #for (num,item) in enumerate(models_list):
         #print(num+1,item)
     return models_list
@@ -256,11 +261,11 @@ def calculate_s_and_w_flows(flow_data):
     pass
 
 
-def find_proofreading(s_flows, w_flows, minima_indices, ddg=1.0, n=1, thresh = 1e-10):
+def find_proofreading(s_flows, w_flows, n_flows, minima_indices, ddg=1.0, n=1, thresh = 1e-10):
     proofreading_models = []
     for i in minima_indices:  # list of indices of models below threshold
-        if w_flows[i] != 0:
-            if ( (abs(s_flows[i] / w_flows[i]) > (n*np.exp(ddg)) and s_flows[i] > thresh)):
+        if np.abs(w_flows[i]) >= 1e-18 and np.abs(w_flows[i]) <= 1e+18:
+            if (abs(s_flows[i] / w_flows[i]) > (n*np.exp(ddg)) and s_flows[i] > thresh and n_flows[i] > 1e-12 and abs(s_flows[i] / n_flows[i]) >= 0.1):
                 proofreading_models.append(i)
     return proofreading_models
 
@@ -269,7 +274,7 @@ def find_proofreading(s_flows, w_flows, minima_indices, ddg=1.0, n=1, thresh = 1
 def process_data(datafile, graph=0, proof=0, threshold = 0, proof_thresh = 1e-10):
     #print("processing data...\n")
     data = import_data(datafile, proof)  # cluster_data.dat is [mc_n, mc_e,...flows...]
-    mc_n, mc_e, flow_data, n_flow, s_flow, w_flow = slice_array(data)
+    mc_n, mc_e, flow_data, n_flow, s_flow, w_flow = slice_array(data[:int(1e6/500)])
     n_models = len(mc_n)
     #thresh = np.max(mc_e)+1  # all models
     #thresh = -1e-7
@@ -286,20 +291,21 @@ def process_data(datafile, graph=0, proof=0, threshold = 0, proof_thresh = 1e-10
     if proof == 1:
         proof_thresh2 = 1e-05
         min_idx2 = find_proofreading(
-            s_flow, w_flow, minima_indices, ddg=ddg_sw, n=proof_n, thresh=proof_thresh2)
+            s_flow, w_flow, n_flow, minima_indices, ddg=ddg_sw, n=proof_n, thresh=proof_thresh2)
 
         minima_indices = find_proofreading(
-            s_flow, w_flow, minima_indices, ddg=ddg_sw, n =proof_n, thresh = proof_t )
+            s_flow, w_flow, n_flow, minima_indices, ddg=ddg_sw, n =proof_n, thresh = proof_t )
         n_proof_models = len(minima_indices)
         proof_ratio = 1.0*n_proof_models/n_models
 
 
         proof_thresh3 = 1e-15
         min_idx3 = find_proofreading(
-            s_flow, w_flow, minima_indices, ddg=ddg_sw, n=proof_n, thresh=proof_thresh3)
+            s_flow, w_flow, n_flow, minima_indices, ddg=ddg_sw, n=proof_n, thresh=proof_thresh3)
     minima_models_list = indices_to_models(minima_indices, mc_n)
-    minima_models_list2 = indices_to_models(min_idx2, mc_n)
-    minima_models_list3 = indices_to_models(min_idx3, mc_n)
+    if proof == 1:
+        minima_models_list2 = indices_to_models(min_idx2, mc_n)
+        minima_models_list3 = indices_to_models(min_idx3, mc_n)
     minima_flows = get_flows(flow_data, minima_indices)
     #old_processed_flows = normalize_and_threshold_flows(minima_flows)
     processed_flows = normalize_flows(minima_flows)
@@ -345,7 +351,22 @@ def process_data(datafile, graph=0, proof=0, threshold = 0, proof_thresh = 1e-10
 
     # correlation = vector_autocorrelate(processed_flows)
 
-
+    plt.close()
+    ax1 = plt.subplot(111)
+    ax1.plot(mc_n,mc_e, linewidth=3)
+    #ax1.set_ylim(-1e-3, 1e-3)
+    #ax1.set_yscale('log')
+    ax1.set_xlim(0, 1e6)
+    ax1.set_title("ModelExplorer trajectory in model space (Symporter)", fontsize=28)
+    ax1.set_ylabel(
+        r'Monte Carlo energy: -$J_{substrate}$ [arb. units]', fontsize=26)
+    ax1.set_xlabel("Monte Carlo iteration number [n]", fontsize=26)
+    ax1.tick_params(axis='both', labelsize=20)
+    ax1.yaxis.set_major_formatter(mtick.FormatStrFormatter('%.1e'))
+    ax1.xaxis.set_major_formatter(mtick.FormatStrFormatter('%.1e'))
+    plt.tight_layout()
+    plt.show()
+    #exit()
 
     #correlation = acf(processed_flows)
     #print("ACF[0] = %s" % correlation[0])
@@ -401,14 +422,14 @@ def process_data(datafile, graph=0, proof=0, threshold = 0, proof_thresh = 1e-10
             n_models, thresh, n_thresh_models, thresh_ratio, proof_n, ddg_sw, n_proof_models, proof_ratio)
     return processed_flows, minima_models_list, report
 
-def model_correlation(norm_flows, model_list, thresh, max_d=2.5e6):
+def model_correlation(norm_flows, model_list, thresh, max_d=3e6):
     dist_mat = squareform(pdist(norm_flows, metric='euclidean'))
     #print(dist_mat.shape)
     n = int(dist_mat.shape[0])
     avg = []
     std_err = []
     count = []
-    
+
     if not model_list:
         print("no models found. avg = 2.5e6 +/- 0")
         avg = [max_d] * len(thresh)
@@ -421,9 +442,10 @@ def model_correlation(norm_flows, model_list, thresh, max_d=2.5e6):
                 # find first element over threshold
                 idx = np.argmax(dist_mat[i, i:] > t)
                 if idx == 0 or np.isnan(idx):  # if there is no model > thresh
-                    d.append(int(model_list[n-1]-model_list[i]))  # distance = distance to last model
+                    d.append(max_d-model_list[i])  # distance = distance to last model
                 else:
-                    d.append(model_list[int(idx + i)]-model_list[i])  
+                    d.append(model_list[int(idx + i)]-model_list[i])
+
             # if not d:  # if empty (no models)
             #     d.append(0.0)
             #     count.append(0)
@@ -433,6 +455,7 @@ def model_correlation(norm_flows, model_list, thresh, max_d=2.5e6):
             dist = np.asarray(d)
             avg.append(float(np.average(dist)))
             std_err.append(float(np.std(dist)/np.sqrt(dist.shape[0])))
+
     return avg, std_err, count
 
 ### Compares each consecutive model in dataset1 with models in dataset2
@@ -542,6 +565,16 @@ def acf(data):
     return acf
 
 
+def avg_cluster_change_time(clusters, models_list, max = 2.5e6):
+    for i in np.arange(clusters):
+        pass
+        # move until cluster changes
+        # calculate time difference
+        # repeat until end of cluster list
+
+
+
+
 ### Main program follows simple pipeline architecture:
 ### 1) import raw data, 2) seperate data into mc_n, mc_e, and flows,
 ### 3) find local minima from mc_n, 4) get net flows of minima,
@@ -556,14 +589,34 @@ def cluster_and_analyze_one_run(datafile, analyze=None, graph=1, proof=0, thresh
             datafile, graph=graph, proof=proof, threshold=threshold)
         print("clustering data...\n")
         cluster_models = create_cluster(processed_flows, minima_models_list)
+        # array M_i = cluster number for sample at i
+        clustering = fcluster(cluster_models[1], t=0.65, criterion='distance')
+        #print(minima_models_list)
+        print(clustering)
+        print(np.max(clustering))
+        print(np.max(np.asarray(minima_models_list)))
+        print(np.bincount(clustering))
+        print(clustering.shape)
+        plt.close()
+        ax1 = plt.subplot(111)
+        ax1.step(np.asarray(minima_models_list), clustering, where='post', linewidth=1.5)
+        ax1.set_ylim(np.min(clustering), np.max(clustering))
+        ax1.set_xlim(0,3e6)
+        ax1.set_title("ModelExplorer cluster trajectory ")
+        ax1.set_ylabel("Cluster index [i]")
+        ax1.set_xlabel("Monte Carlo iteration number [n]")
+        ax1.xaxis.set_major_formatter(mtick.FormatStrFormatter('%.1e'))
+        plt.tight_layout()
+        plt.show()
+        
         if analyze == 'Run1':
             print("analyzing models...\n")
-            analyze_models(cluster_models)
+            analyze_models(cluster_models[0])
         runtime = time.time()-start_time  # testing for runtime data
         print(report)
-        print(cluster_models)
+        print(cluster_models[0])
         if analyze == 'Run1':
-            print("Models analyzed: %s" % (len(cluster_models)))
+            print("Models analyzed: %s" % (len(cluster_models[0])))
         print("Runtime: %s (s)" % (runtime))
         print(time.strftime("%Y-%m-%d %H:%M"))
 
@@ -631,21 +684,213 @@ def compare_n_runs(run_list, thresh, flow_thresh = None):
     print(time.strftime("%Y-%m-%d %H:%M"))
     
 
+def append_data(f1,f2):
+    pass
+
+def aggregate_analysis():
+
+   #D_list = ["cluster_data_d02.dat", "cluster_data_d08.dat"]
+
+    run_size = 1e6
+    step_size = 500
+
+    d1 = import_data("cluster_data_d1_ts1.dat", proof=1)
+    d2 = import_data("cluster_data_d15_ts1.dat", proof=1)
+    d3 = import_data("cluster_data_d02_ts1.dat", proof=1)
+    d4 = import_data("cluster_data_d1_ts2.dat", proof=1)
+
+    # d1 = import_data("cluster_data_d1_ts1_s123456.dat", proof=1)
+    # d2 = import_data("cluster_data_d1_ts1_s234567.dat", proof=1)
+    # d3 = import_data("cluster_data_d1_ts1_s345678.dat", proof=1)
+    # d4 = import_data("cluster_data_d1_ts1_s456789.dat", proof=1)
+
+
+    D1 = d1[:int(run_size/step_size)]
+    D2 = d2[:int(run_size/step_size)]
+    D3 = d3[:int(run_size/step_size)]
+    D4 = d4[:int(run_size/step_size)]
+
+
+
+    step_size = 500
+    D1[:, 0] = np.arange(0, D1.shape[0]*step_size, step_size) + 0.1
+    D2[:, 0] = np.arange(0, D2.shape[0]*step_size, step_size) + 0.2
+    D3[:, 0] = np.arange(0, D3.shape[0]*step_size, step_size) + 0.3
+    D4[:, 0] = np.arange(0, D4.shape[0]*step_size, step_size) + 0.4
+
+    D = np.concatenate(
+        (D1, D2, D3, D4), axis=0)
+    # D = np.concatenate(
+    #     (D1[:int(1.2e6/step_size)], D2[:int(1.2e6/step_size)]), axis=0)
+
+    
+    #print(D[:, 0])
+
+    # cluster_data.dat is [mc_n, mc_e,...flows...]
+    mc_n, mc_e, flow_data, n_flow, s_flow, w_flow = slice_array(D)
+    n_models = len(mc_n)
+    #thresh = np.max(mc_e)+1  # all models
+    #thresh = -1e-7
+    thresh = 1e100
+    # check n nearest neighbors below threshold
+    minima_indices = find_min(mc_e, 1, thresh, filter=True)
+    n_thresh_models = len(minima_indices)
+    thresh_ratio = 1.0 * n_thresh_models/n_models
+    n_proof_models = 0
+    proof_ratio = 0.0
+    ddg_sw = 1.0
+    proof_n = 10
+    proof_t = 1e-10
+
+    minima_indices = find_proofreading(s_flow, w_flow, n_flow, minima_indices, ddg=ddg_sw, n=proof_n, thresh=proof_t)
+    #print(minima_indices)
+    n_proof_models = len(minima_indices)
+    proof_ratio = 1.0*n_proof_models/n_models
+    minima_models_list = indices_to_models(minima_indices, mc_n)
+    print(minima_models_list)
+    
+
+
+    #exit()
+    #print(minima_models_list[0:])
+    
+    minima_flows = get_flows(flow_data, minima_indices)
+    #old_processed_flows = normalize_and_threshold_flows(minima_flows)
+    processed_flows = normalize_flows(minima_flows)
+
+    report = "Total Models: %s\nModels below MC energy threshold (%s) : %s, Ratio: %s\nModels above proofreading threshold %s*(e^%s) & s flow > %s: %s, Ratio: %s" % (
+        n_models, thresh, n_thresh_models, thresh_ratio, proof_n, ddg_sw, proof_t, n_proof_models, proof_ratio)
+    print(report)
+
+    cluster_models = create_cluster(processed_flows, minima_models_list)
+    clustering = fcluster(cluster_models[1], t=0.65, criterion='distance')  # array M_i = cluster number for sample at i
+    print("%s clusters using euclidean distance threshold = 0.65" % np.max(clustering))
+    print(np.bincount(clustering))
+    print(clustering.shape)
+
+
+    # fix later (don't repeat yourself...)
+    d1_idx = np.where(np.logical_and(np.greater_equal(
+        np.asarray(minima_indices), 0), np.less_equal(np.asarray(minima_indices), D1.shape[0])))[0].astype(int)
+    d1_x = np.asarray(minima_models_list[d1_idx[0]:d1_idx[-1]+1])-0.1
+   
+    d2_idx = np.where(np.logical_and(np.greater_equal(
+        np.asarray(minima_indices), D1.shape[0]), np.less_equal(np.asarray(minima_indices), D1.shape[0]+D2.shape[0])))[0].astype(int)
+    d2_x = np.asarray(minima_models_list[d2_idx[0]:d2_idx[-1]+1])-0.2
+
+    d3_idx = np.where(np.logical_and(np.greater_equal(
+        np.asarray(minima_indices), D1.shape[0]+D2.shape[0]), np.less_equal(np.asarray(minima_indices), D1.shape[0]+D2.shape[0]+D3.shape[0])))[0].astype(int)
+    d3_x = np.asarray(minima_models_list[d3_idx[0]:d3_idx[-1]+1])-0.3
+
+    d4_idx = np.where(np.logical_and(np.greater_equal(
+        np.asarray(minima_indices), D1.shape[0]+D2.shape[0]+D3.shape[0]), 
+        np.less_equal(np.asarray(minima_indices), D1.shape[0]+D2.shape[0]+D3.shape[0]+D4.shape[0])))[0].astype(int)
+    d4_x = np.asarray(minima_models_list[d4_idx[0]:d4_idx[-1]+1])-0.4
+
+    d1_y = clustering[0:d1_x.shape[0]]
+    d2_y = clustering[d1_x.shape[0]:(d1_x.shape[0]+d2_x.shape[0])]
+    d3_y = clustering[(d1_x.shape[0]+d2_x.shape[0]):(d1_x.shape[0]+d2_x.shape[0]+d3_x.shape[0])]
+    d4_y = clustering[(d1_x.shape[0]+d2_x.shape[0]+d3_x.shape[0]):(d1_x.shape[0]+d2_x.shape[0]+d3_x.shape[0]+d4_x.shape[0])]
+
+    x_s = [d1_x,d2_x,d3_x,d4_x]
+    y_s = [d1_y, d2_y, d3_y, d4_y]
+
+    #x_s = [d1_x, d2_x]
+    #y_s = [d1_y, d2_y]
+
+    #print(run2_cluster_traj)
+    plt.close()
+
+    ### KEEP
+    plt.suptitle("ModelExplorer trajectory in model space", fontsize=20)
+
+    for i in range(0,4):
+        
+        x = mc_n[int(i*1e6/500):int((i+1)*1e6/500)]
+        y  = mc_e[int(i*1e6/500):int((i+1)*1e6/500)]
+        plot_n = 221+i
+        ax1 = plt.subplot(plot_n)
+        ax1.plot(x, y, linewidth=0.5)
+        ax1.set_ylim(-1e-3, 1e-3)
+        ax1.set_xlim(0,run_size)
+        ax1.set_title("Run %s" % (i+1))
+        ax1.set_ylabel("Cluster index [i]", fontsize = 18)
+        ax1.set_xlabel("Monte Carlo iteration number [n]", fontsize=18)
+        #plt.yticks(np.arange(0, 13, 1))
+        plt.xticks(np.arange(0, 1.1e6, 1e5))
+        ax1.xaxis.set_major_formatter(mtick.FormatStrFormatter('%.1e'))
+        ax1.yaxis.set_major_formatter(mtick.FormatStrFormatter('%.1e'))
+    plt.tight_layout()
+    plt.show()
+
+    plt.close()
+
+    ### KEEP
+    plt.suptitle("ModelExplorer trajectory in cluster space", fontsize=20)
+
+    for i in range(0, 4):
+        print(np.bincount(y_s[i]))
+        x = np.append(x_s[i], run_size)
+        y = np.append(y_s[i], y_s[i][-1])
+        plot_n = 221+i
+        ax1 = plt.subplot(plot_n)
+        ax1.step(x, y, where='post', linewidth=1.5)
+        ax1.set_ylim(0, np.max(clustering))
+        ax1.set_xlim(0, run_size)
+        ax1.set_title("Run %s" % (i+1))
+        ax1.set_ylabel("Cluster index [i]", fontsize=18)
+        ax1.set_xlabel("Monte Carlo iteration number [n]", fontsize=18)
+        plt.yticks(np.arange(0, 13, 1))
+        plt.xticks(np.arange(0, 1.1e6, 1e5))
+        ax1.xaxis.set_major_formatter(mtick.FormatStrFormatter('%.1e'))
+    plt.tight_layout()
+    plt.show()
+
+
+
+    # plt.suptitle("ModelExplorer cluster distributions", fontsize=20)
+    # for i in range(0, 4):
+    #     #print(np.bincount(y_s[i]))
+    #     plot_n = 331+i
+    #     ax1 = plt.subplot(plot_n)
+    #     ax1.bar(np.arange(np.bincount(y_s[i]).shape[0]), np.bincount(y_s[i]))
+    #     #ax1.set_ylim(0, np.max(clustering))
+    #     ax1.set_xlim(0, 16)
+    #     ax1.set_title("Run %s" % (i+1))
+    #     ax1.set_ylabel("Counts for cluster i [n]")
+    #     ax1.set_xlabel("Cluster index [i]")
+    #     plt.xticks(np.arange(0, 16, 1.0))
+    #     #ax1.xaxis.set_major_formatter(mtick.FormatStrFormatter('%.1e'))
+    # plt.tight_layout()
+    # plt.show()
+
+
+
+
 def main():
-    # cluster_and_analyze_one_run("cluster_data.dat", analyze='None',
-      #                        graph=1, proof=1, threshold=1e+100)  # "Run1" to analyze
+
+    cluster_and_analyze_one_run("symp_cluster_data.dat", analyze='None',
+                             graph=0, proof=0, threshold=1e+100)  # "Run1" to analyze
+
+
     #compare_and_analyze_two_runs("cluster_data.dat","cluster_data_ts1_d1.dat", .01)
-    runs = [("cluster_data_d0_0_1.dat", 0.01),
-            ("cluster_data_d0_1.dat", 0.1),
-            ("cluster_data_d0_4v2.dat", 0.4),
-            ("cluster_data_d0_5.dat", 0.5),
-            ("cluster_data_d0_6v2.dat", 0.6),
-            ("cluster_data_d1.dat",1),
-            ("cluster_data_d1_25.dat",1.25)]
+
+    # runs = [("cluster_data_d0_0_1.dat", 0.01),
+    #         ("cluster_data_d0_1.dat", 0.1),
+    #         ("cluster_data_d02.dat", 0.2),
+    #         ("cluster_data_d0_4v2.dat", 0.4),
+    #         ("cluster_data_d0_5.dat", 0.5),
+    #         ("cluster_data_d0_6v2.dat", 0.6),
+    #         ("cluster_data_d08.dat", 0.8),
+    #         ("cluster_data_d1.dat",1),
+    #         ("cluster_data_d1_25.dat",1.25)]
             
-    thresh = [ 0.1, 0.25, 0.5, 0.75, 1.0]
-    #thresh = [0.5]
-    compare_n_runs(runs, thresh)
+    # #runs = [("cluster_data_d0_1.dat", 0.1)]
+    # thresh = [ 0.1, 0.25, 0.5, 0.75, 1.0]
+    # #thresh = [0.5]
+    # compare_n_runs(runs, thresh)
+
+    #aggregate_analysis()
     pass
 
 if __name__ == "__main__":

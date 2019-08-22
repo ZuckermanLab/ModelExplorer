@@ -757,6 +757,11 @@ foreach $list ( @equiv_lists_tr ) {
 # uses python script to generate (from graph) connected states/energies and initialize MC model
 python_networkx();
 my ($connected_states, $connected_transitions) = import_from_python();
+
+# for preprint
+# print_equiv($connected_states);
+# print_equiv($connected_transitions);
+# exit();
 print LOG "connected states\n".Dumper($connected_states);
 print LOG "connected transitions\n".Dumper($connected_transitions);
 
@@ -2765,4 +2770,18 @@ sub arctanhx{
   my $x = $_[0];
   my $solution = (1/2)*log(abs((1+$x)/(1-$x)));  # log form of arctanh(x)
   return $solution;
+}
+
+sub print_equiv {
+  my $dictionary_ref = $_[0];
+  my %dictionary_deref = %{$dictionary_ref};
+
+  foreach $key (keys %dictionary_deref){
+     print LOG "$key";
+     foreach $key_in_key (keys %{$dictionary_deref{$key}}){
+         print LOG ", $key_in_key";
+     }
+     print LOG "\n";
+  }
+  print LOG "\n";
 }

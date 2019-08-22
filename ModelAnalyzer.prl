@@ -1135,12 +1135,14 @@ if ( $n==0 && $not_mc!=1) {
    $emc_old = $emc; $n_accept = 0;
    # Output data for analysis
    print DATA "# n_mc   mc_energy   ";
-   print FLOWS "# n_mc   ";
+   print FLOWS "$n  ";
+   print "$n  ";
    for ( $i=0; $i<@states; $i++ ) {
       for ( $j=0; $j<@states; $j++ ) {
          if ( $edges[$i][$j] == 1 ) {
             print DATA "$states[$i][0]_TO_$states[$j][0]   ";
             print FLOWS "$states[$i][0]_TO_$states[$j][0]   ";
+            print "$states[$i][0]_TO_$states[$j][0]   ";
          }
       }
    }
@@ -1224,7 +1226,8 @@ if ( $n%$dprint==0 ) {
             $netflow[$i][$j] = $flowtmp - $rflowtmp;
             $branches{$transn} = $flowtmp;
             $branch_sum += $flowtmp;
-            printf FLOWS "%6.3e  ", $flowtmp;
+            print FLOWS "%.3e ( %.3e )", $flowtmp, $rflowtmp;
+            printf("%.3e ( %.3e )", $flowtmp, $rflowtmp); 
             if ( $rates[$i][$j]>$kzero*1e-3 ) { # print rates which are significant
                print MCFILE "TRANSN ON: $a_name to $b_name with k = $rates[$i][$j]\n";
             }
@@ -1249,6 +1252,8 @@ if ( $n%$dprint==0 ) {
 
 if ( $n==0 || $mc_change==1 ) { # save flows for accepted moves
    @netflow_save = ();
+   @fwdflow_save = ();
+   @rflow_save = ();
    $sflow_save = $sflow;
    $wflow_save = $wflow;
    $nflow_save = $nflow;
@@ -1260,6 +1265,8 @@ if ( $n==0 || $mc_change==1 ) { # save flows for accepted moves
             $transn = $a_name . "_TO_" . $b_name;
             $flowtmp = flow_alt( $a_name, $b_name );
             $rflowtmp = flow_alt( $b_name, $a_name );
+            $fwdflow_save[$i][$j] = $flowtmp;
+            $rflow_save[$i][$j] = $rflowtmp;
             $netflow_save[$i][$j] = $flowtmp - $rflowtmp;
          } # end of if edges loop
       } # end of first j loop
@@ -1284,6 +1291,7 @@ $wflow_round = sprintf("%.4g", $wflow_save);
 $nflow_round = sprintf("%.4g", $nflow_save);
 
 if ( $n%$dprint==0 ) {
+   print "$n\n";
    $pathways_file = "flux_n$n.csv";
    open(PATHWAYS, "> $pathways_file") or die;
    print PATHWAYS "$analysis  dmu_now=$dmu_now dmu_N=$dmu_N dmu_S=$dmu_S dmu_W=$dmu_W dg_sw=$dg_SW alpha=$alpha seed=$seed proof=$proof energy_model=$efile_init, emc = $emc_round S_flow = $sflow_round W_flow = $wflow_round N_flow = $nflow_round |S:N| = $s_to_n |S:W| = $s_to_w, 0.0 \n";
@@ -1299,6 +1307,7 @@ if ( $n%$dprint==0 ) {
          if ( $alt_rates[$i][$j] > 0 ) {
             $b_name = $alt_states[$j];
             $transn = $a_name . "_TO_" . $b_name;
+            print "$transn  fwd = $fwdflow_save[$i][$j],  rv = $rflow_save[$i][$j],  Net flow = $netflow_save[$i][$j]\n";
             printf LOG "   %s    Net flow = %6.2e\n",  $transn, $netflow_save[$i][$j];
             printf PATHWAYS "$a_name,$b_name,$netflow_save[$i][$j] \n";
          } # end of if edges loop
