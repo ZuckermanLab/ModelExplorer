@@ -3,9 +3,9 @@ Transporter State Space Modeling README (outdated - need to update!)
 NOTE: The software is frequently updated to include better pipelining, automation, configuration, and analysis capabilities, as well as any bugs that we find.
 The readme might not be 100% up-to-date on the latest changes to the GitHub repo. Automation is still a WIP. Use at your own risk!  
 
-README.txt written by August George with help from Dr. Zuckerman.
-Proof-maker.prl written by Dr. Zuckerman and updated/modified by August George.
-Analyze-model.prl written by Dr. Zuckerman and updated/modified by August George.
+README.txt written by August George and Dr. Zuckerman.
+Proof-maker.prl written by Dr. Zuckerman and August George.
+Analyze-model.prl written by Dr. Zuckerman and by August George.
 
 Readme TODO: METHODOLOGY,more assumptions?, update with bug fix and improvements, update everything!.
 
