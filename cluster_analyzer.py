@@ -66,38 +66,47 @@ def create_cluster(matrix, minima):
         return minima
     #square_dist_matrix = squareform(dist)
     Z = linkage(dist, 'complete')  # complete clustering
-    fig = plt.figure(figsize=(75,50))
-    with plt.rc_context({'lines.linewidth': 1.5}):
+    fig = plt.figure(figsize=(15,15))
+    with plt.rc_context({'lines.linewidth': 1}):
         dn = dendrogram(
             Z,
             truncate_mode = 'level',
-            p = 9,
+            p = 4,
             color_threshold = 0.65,
             distance_sort = 'ascending',
-            #no_labels = 'True'
+            #no_labels = 'True',
             labels = minima,
+            leaf_rotation = 90,
+            leaf_font_size = 16,
+            #orientation = 'right',
             #labels=np.asarray(minima).astype(int),
+            show_contracted = 'True'
         )
     #dn = dendrogram(
         #Z,
         #distance_sort = 'ascending',
         #labels=minima,
     #)
-    plt.title('Clustering hierarchy (truncated)\nModels with enhanced selectivity', fontsize=38)
-    plt.ylabel('Cluster distance [Euclidean]', fontsize=34)
-    plt.xlabel('Model index [MC step.run]', fontsize=34)
+    plt.title('Clustering hierarchy (truncated)\nModels with enhanced selectivity\n', fontsize=32)
+    plt.ylabel('Cluster distance [Euclidean]', fontsize=26)
+    plt.xlabel('Model (cluster size)', fontsize=26)
     #plt.figtext(.80,.85,"Found %s Models" % len(minima), fontsize=30, ha='center')
-    plt.tick_params(axis='both', which='major', labelsize=28)
+    plt.tick_params(axis='both', which='major', labelsize=22)
     plt.margins(x=0.01, y=0.01)
     #plt.tick_params(axis='x', which='major', labelsize=20)
     #plt.xticks(fontsize=12)
+    plt.annotate("cluster A", xy = (0.10,0.30), xycoords = 'axes fraction', fontsize=22)
+    plt.annotate("cluster B", xy = (0.35,0.37), xycoords = 'axes fraction', fontsize=22)
+    plt.annotate("cluster C", xy = (0.60,0.23), xycoords = 'axes fraction', fontsize=22)
+    plt.annotate("cluster D", xy = (0.85,0.46), xycoords = 'axes fraction', fontsize=22)
     plt.savefig("model_heirarchy_cluster_complete.png", format='png', bbox_inches='tight')
-    #plt.show()
+    plt.show()
     leaves = dn['ivl']  # get leaves of cluster
     #print(leaves)
     cleaned_leaves = [x for x in leaves if str(x).replace(
         ".", "", 1).isdigit()]  # remove truncated '(x)'
     #print(cleaned_leaves)
+    #exit() # 
     return(cleaned_leaves,Z)
 
 
@@ -265,7 +274,8 @@ def find_proofreading(s_flows, w_flows, n_flows, minima_indices, ddg=1.0, n=1, t
     proofreading_models = []
     for i in minima_indices:  # list of indices of models below threshold
         if np.abs(w_flows[i]) >= 1e-18 and np.abs(w_flows[i]) <= 1e+18:
-            if (abs(s_flows[i] / w_flows[i]) > (n*np.exp(ddg)) and s_flows[i] > thresh and n_flows[i] > 1e-12 and abs(s_flows[i] / n_flows[i]) >= 0.1):
+            if ( (abs(s_flows[i] / w_flows[i]) > (n*np.exp(ddg))) and (s_flows[i] > thresh) and (n_flows[i] > 1e-12) and (abs(s_flows[i] / n_flows[i]) >= 0.1)):
+                print(n_flows[i])
                 proofreading_models.append(i)
     return proofreading_models
 
@@ -303,9 +313,8 @@ def process_data(datafile, graph=0, proof=0, threshold = 0, proof_thresh = 1e-10
         min_idx3 = find_proofreading(
             s_flow, w_flow, n_flow, minima_indices, ddg=ddg_sw, n=proof_n, thresh=proof_thresh3)
     minima_models_list = indices_to_models(minima_indices, mc_n)
-    if proof == 1:
-        minima_models_list2 = indices_to_models(min_idx2, mc_n)
-        minima_models_list3 = indices_to_models(min_idx3, mc_n)
+    minima_models_list2 = indices_to_models(min_idx2, mc_n)
+    minima_models_list3 = indices_to_models(min_idx3, mc_n)
     minima_flows = get_flows(flow_data, minima_indices)
     #old_processed_flows = normalize_and_threshold_flows(minima_flows)
     processed_flows = normalize_flows(minima_flows)
@@ -353,15 +362,13 @@ def process_data(datafile, graph=0, proof=0, threshold = 0, proof_thresh = 1e-10
 
     plt.close()
     ax1 = plt.subplot(111)
-    ax1.plot(mc_n,mc_e, linewidth=3)
-    #ax1.set_ylim(-1e-3, 1e-3)
+    ax1.plot(mc_n,mc_e, linewidth=1)
+    ax1.set_ylim(-1e-3, 1e-3)
     #ax1.set_yscale('log')
-    ax1.set_xlim(0, 1e6)
-    ax1.set_title("ModelExplorer trajectory in model space (Symporter)", fontsize=28)
-    ax1.set_ylabel(
-        r'Monte Carlo energy: -$J_{substrate}$ [arb. units]', fontsize=26)
-    ax1.set_xlabel("Monte Carlo iteration number [n]", fontsize=26)
-    ax1.tick_params(axis='both', labelsize=20)
+    ax1.set_xlim(0, 3e6)
+    ax1.set_title("ModelExplorer trajectory in model space (truncated)")
+    ax1.set_ylabel("Monte Carlo energy")
+    ax1.set_xlabel("Monte Carlo iteration number [n]")
     ax1.yaxis.set_major_formatter(mtick.FormatStrFormatter('%.1e'))
     ax1.xaxis.set_major_formatter(mtick.FormatStrFormatter('%.1e'))
     plt.tight_layout()
@@ -600,7 +607,7 @@ def cluster_and_analyze_one_run(datafile, analyze=None, graph=1, proof=0, thresh
         plt.close()
         ax1 = plt.subplot(111)
         ax1.step(np.asarray(minima_models_list), clustering, where='post', linewidth=1.5)
-        ax1.set_ylim(np.min(clustering), np.max(clustering))
+        ax1.set_ylim(np.min(clustering), 8)
         ax1.set_xlim(0,3e6)
         ax1.set_title("ModelExplorer cluster trajectory ")
         ax1.set_ylabel("Cluster index [i]")
@@ -694,10 +701,12 @@ def aggregate_analysis():
     run_size = 1e6
     step_size = 500
 
-    d1 = import_data("cluster_data_d1_ts1.dat", proof=1)
-    d2 = import_data("cluster_data_d15_ts1.dat", proof=1)
-    d3 = import_data("cluster_data_d02_ts1.dat", proof=1)
-    d4 = import_data("cluster_data_d1_ts2.dat", proof=1)
+    d1 = import_data("cluster_data_run1.dat", proof=1)  # demax=1 temp_scale=1
+    d2 = import_data("cluster_data_run2.dat",
+                     proof=1)  # demax=0.5 temp_scale=0.5
+    d3 = import_data("cluster_data_run3.dat", proof=1)  # demax=0.2 temp_scale=1
+    d4 = import_data("cluster_data_run4.dat",
+                     proof=1)  # demax=1 temp_scale=2
 
     # d1 = import_data("cluster_data_d1_ts1_s123456.dat", proof=1)
     # d2 = import_data("cluster_data_d1_ts1_s234567.dat", proof=1)
@@ -802,7 +811,7 @@ def aggregate_analysis():
     plt.close()
 
     ### KEEP
-    plt.suptitle("ModelExplorer trajectory in model space", fontsize=20)
+    plt.suptitle("ModelExplorer trajectory in model space", fontsize=36)
 
     for i in range(0,4):
         
@@ -813,20 +822,27 @@ def aggregate_analysis():
         ax1.plot(x, y, linewidth=0.5)
         ax1.set_ylim(-1e-3, 1e-3)
         ax1.set_xlim(0,run_size)
-        ax1.set_title("Run %s" % (i+1))
-        ax1.set_ylabel("Cluster index [i]", fontsize = 18)
-        ax1.set_xlabel("Monte Carlo iteration number [n]", fontsize=18)
+        ax1.set_title("Run %s" % (i+1), fontsize=24)
+        if i == 0:
+            ax1.set_ylabel(
+                "Monte Carlo 'energy' [arb. flux units]", fontsize=20)
+        if i == 2:
+            ax1.set_ylabel("Monte Carlo 'energy' [arb. flux units]", fontsize = 20)
+            ax1.set_xlabel("Monte Carlo iteration number [n]", fontsize=20)
+        if i == 3:
+            ax1.set_xlabel("Monte Carlo iteration number [n]", fontsize=20)
         #plt.yticks(np.arange(0, 13, 1))
         plt.xticks(np.arange(0, 1.1e6, 1e5))
-        ax1.xaxis.set_major_formatter(mtick.FormatStrFormatter('%.1e'))
-        ax1.yaxis.set_major_formatter(mtick.FormatStrFormatter('%.1e'))
-    plt.tight_layout()
+        ax1.tick_params(axis='both', which='major', labelsize=14)
+        ax1.xaxis.set_major_formatter(mtick.FormatStrFormatter('%.0e'))
+        ax1.yaxis.set_major_formatter(mtick.FormatStrFormatter('%.0e'))
+    #plt.tight_layout()
     plt.show()
 
     plt.close()
 
     ### KEEP
-    plt.suptitle("ModelExplorer trajectory in cluster space", fontsize=20)
+    plt.suptitle("ModelExplorer trajectory in cluster space", fontsize=32)
 
     for i in range(0, 4):
         print(np.bincount(y_s[i]))
@@ -835,15 +851,22 @@ def aggregate_analysis():
         plot_n = 221+i
         ax1 = plt.subplot(plot_n)
         ax1.step(x, y, where='post', linewidth=1.5)
-        ax1.set_ylim(0, np.max(clustering))
+        ax1.set_ylim(0, max(clustering))
         ax1.set_xlim(0, run_size)
-        ax1.set_title("Run %s" % (i+1))
-        ax1.set_ylabel("Cluster index [i]", fontsize=18)
-        ax1.set_xlabel("Monte Carlo iteration number [n]", fontsize=18)
-        plt.yticks(np.arange(0, 13, 1))
+        ax1.set_title("Run %s" % (i+1), fontsize=24)
+        if i == 0:
+            ax1.set_ylabel("Cluster index [i]", fontsize=20)
+        if i == 2:
+            ax1.set_ylabel("Cluster index [i]", fontsize=20)
+            ax1.set_xlabel("Monte Carlo iteration number [n]", fontsize=20)
+        if i == 3:
+            ax1.set_xlabel("Monte Carlo iteration number [n]", fontsize=20)
+
+        ax1.tick_params(axis='both', which='major', labelsize=14)
+        plt.yticks(np.arange(0, max(clustering)+2, 1))
         plt.xticks(np.arange(0, 1.1e6, 1e5))
-        ax1.xaxis.set_major_formatter(mtick.FormatStrFormatter('%.1e'))
-    plt.tight_layout()
+        ax1.xaxis.set_major_formatter(mtick.FormatStrFormatter('%.0e'))
+    #plt.tight_layout()
     plt.show()
 
 
@@ -869,8 +892,8 @@ def aggregate_analysis():
 
 def main():
 
-    cluster_and_analyze_one_run("symp_cluster_data.dat", analyze='None',
-                             graph=0, proof=0, threshold=1e+100)  # "Run1" to analyze
+    #cluster_and_analyze_one_run("cluster_data_d1.dat", analyze='None',
+    #                          graph=0, proof=1, threshold=1e+100)  # "Run1" to analyze
 
 
     #compare_and_analyze_two_runs("cluster_data.dat","cluster_data_ts1_d1.dat", .01)
@@ -890,7 +913,7 @@ def main():
     # #thresh = [0.5]
     # compare_n_runs(runs, thresh)
 
-    #aggregate_analysis()
+    aggregate_analysis()
     pass
 
 if __name__ == "__main__":
