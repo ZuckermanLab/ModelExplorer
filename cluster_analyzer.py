@@ -51,6 +51,18 @@ def slice_array(array):
     W_flow = array[:, -1:]
     n = n.flatten()  # remove nesting
     emc = emc.flatten()
+
+    # for aggregate 
+    agg = True
+    run_length = 5e3
+    sample_rate = 1e1
+    samples_per_run = run_length / sample_rate +1  # extra point sampled
+    
+    if agg:
+        print("labeling for aggregation")
+        for i in range(len(n)):
+            n[i] = n[i] + (0.01*np.floor(i/samples_per_run))  # add .0x to label data to run x
+    
     return n, emc, state_flows, N_flow, S_flow, W_flow
 
 
@@ -71,7 +83,7 @@ def create_cluster(matrix, minima):
         dn = dendrogram(
             Z,
             truncate_mode = 'level',
-            p = 4,
+            p = 5,
             color_threshold = 0.65,
             distance_sort = 'ascending',
             #no_labels = 'True',
@@ -240,7 +252,7 @@ def normalize_flows(a):
     
     b = np.linalg.norm(a, axis=1, keepdims=True)
     zero_rates = np.where(b == 0)[0]
-    if zero_rates == []:
+    if zero_rates.size > 0:
         print("zeros in normalization matrix: %s" % zero_rates)
     a2 = np.delete(a, zero_rates, axis=0)
     b2 = np.linalg.norm(a2, axis=1, keepdims=True)
@@ -258,8 +270,10 @@ def indices_to_models(index_list, reference_array):
     Return a list of model numbers (from ModelExplorer run)
     """
     #print("index to model...")
+ 
     models_list = []
     models_list = reference_array[index_list]
+  
     models_list = [x for x in models_list]  # convert to int for use as index ?
     #for (num,item) in enumerate(models_list):
         #print(num+1,item)
@@ -272,40 +286,40 @@ def calculate_s_and_w_flows(flow_data):
 
 def find_proofreading(s_flows, w_flows, n_flows, minima_indices, ddg=1.0, n=1, thresh = 1e-10):
     proofreading_models = []
-    print(len(minima_indices))
-    filter_data= np.array([0,0,0,0,0])
+    #print(len(minima_indices))
+    
     for i in minima_indices:  # list of indices of models below threshold
         # print(i)
         # print(i*1e1)
-        print('1 checking for w > 1e-18, w < 1e+18')
+        #print('1 checking for w > 1e-18, w < 1e+18')
         if np.abs(w_flows[i]) >= 1e-18 and np.abs(w_flows[i]) <= 1e+18:
             # print('!w > 1e-18, w < 1e+18!')
-            print(' 2 checking for abs(s_flows[i] / w_flows[i]) > (n*np.exp(ddg))')
+            #print(' 2 checking for abs(s_flows[i] / w_flows[i]) > (n*np.exp(ddg))')
             # print(n_flows[i])
             # print(s_flows[i])
             # print(w_flows[i])
             # print(abs(s_flows[i] / w_flows[i]))
             # print(n*np.exp(ddg))
-            filter_data[0] = filter_data[0] + 1
+            
             if ( (abs(s_flows[i] / w_flows[i]) > (n*np.exp(ddg)))):
                 # print(' !abs(s_flows[i] / w_flows[i]) > (n*np.exp(ddg))!')
-                print('     3 checking s_flows[i] > thresh')
-                filter_data[1] = filter_data[1] + 1
+                #print('     3 checking s_flows[i] > thresh')
+                
                 if (s_flows[i] > thresh):
                     # print('     !s_flows[i] > thresh!')
-                    print('         4 checking n_flows[i] > 1e-12')
-                    filter_data[2] = filter_data[2] + 1
+                    #print('         4 checking n_flows[i] > 1e-12')
+                    
                     if (n_flows[i] > 1e-12):
                         # print('         !n_flows[i] > 1e-12!')
-                        print('             5 checking abs(s_flows[i] / n_flows[i]) >= 0.1')
-                        filter_data[3] = filter_data[3] + 1
+                        #print('             5 checking abs(s_flows[i] / n_flows[i]) >= 0.1')
+                        
                         if(abs(s_flows[i] / n_flows[i]) >= 0.1):
                             # print('             !abs(s_flows[i] / n_flows[i]) >= 0.1!')
-                            print('FOUND PROOFREADING MODEL')
+                            #print('FOUND PROOFREADING MODEL')
                             # print(n_flows[i])
                             proofreading_models.append(i)
-                            filter_data[4] = filter_data[4] + 1
-    print(filter_data)
+                            
+    
     return proofreading_models
 
 
@@ -317,6 +331,7 @@ def process_data(datafile, graph=0, proof=0, threshold = 0, proof_thresh = 1e-10
     data = import_data(datafile, proof)  # cluster_data.dat is [mc_n, mc_e,...flows...]
     # mc_n, mc_e, flow_data, n_flow, s_flow, w_flow = slice_array(data[:int(run_length/d_print)])
     mc_n, mc_e, flow_data, n_flow, s_flow, w_flow = slice_array(data[:])
+  
     n_models = len(mc_n)
     #thresh = np.max(mc_e)+1  # all models
     #thresh = -1e-7
@@ -343,8 +358,9 @@ def process_data(datafile, graph=0, proof=0, threshold = 0, proof_thresh = 1e-10
 
         proof_thresh3 = 1e-15
         min_idx3 = find_proofreading(
-            s_flow, w_flow, n_flow, minima_indices, ddg=ddg_sw, n=proof_n, thresh=proof_thresh3)
+            s_flow, w_flow, n_flow, minima_indices, ddg=ddg_sw, n=proof_n, thresh=proof_thresh3)     
     minima_models_list = indices_to_models(minima_indices, mc_n)
+  
     minima_models_list2 = indices_to_models(min_idx2, mc_n)
     minima_models_list3 = indices_to_models(min_idx3, mc_n)
     minima_flows = get_flows(flow_data, minima_indices)
@@ -459,6 +475,8 @@ def process_data(datafile, graph=0, proof=0, threshold = 0, proof_thresh = 1e-10
     else:
         report = "Total Models: %s\nModels below MC energy threshold (%s) : %s, Ratio: %s\nModels above proofreading threshold %s*(e^%s): %s, Ratio: %s" % (
             n_models, thresh, n_thresh_models, thresh_ratio, proof_n, ddg_sw, n_proof_models, proof_ratio)
+
+ 
     return processed_flows, minima_models_list, report
 
 def model_correlation(norm_flows, model_list, thresh, max_d=3e6):
@@ -626,17 +644,19 @@ def cluster_and_analyze_one_run(datafile, analyze=None, graph=1, proof=0, thresh
         print("processing data...\n")
         processed_flows, minima_models_list, report = process_data(
             datafile, graph=graph, proof=proof, threshold=threshold)
+
+        agg_data_analysis(minima_models_list)    
         print("clustering data...\n")
         cluster_models = create_cluster(processed_flows, minima_models_list)
-        print(cluster_models)
+        #print(cluster_models)
         # array M_i = cluster number for sample at i
         clustering = fcluster(cluster_models[1], t=0.65, criterion='distance')
         #print(minima_models_list)
-        print(clustering)
-        print(np.max(clustering))
-        print(np.max(np.asarray(minima_models_list)))
-        print(np.bincount(clustering))
-        print(clustering.shape)
+        #print(clustering)
+        #print(np.max(clustering))
+        #print(np.max(np.asarray(minima_models_list)))
+        #print(np.bincount(clustering))
+        #print(clustering.shape)
         plt.close()
         ax1 = plt.subplot(111)
         ax1.step(np.asarray(minima_models_list), clustering, where='post', linewidth=1.5)
@@ -654,7 +674,7 @@ def cluster_and_analyze_one_run(datafile, analyze=None, graph=1, proof=0, thresh
             analyze_models(cluster_models[0])
         runtime = time.time()-start_time  # testing for runtime data
         print(report)
-        print(cluster_models[0])
+        #print(cluster_models[0])
         if analyze == 'Run1':
             print("Models analyzed: %s" % (len(cluster_models[0])))
         print("Runtime: %s (s)" % (runtime))
@@ -920,6 +940,31 @@ def aggregate_analysis():
     #     #ax1.xaxis.set_major_formatter(mtick.FormatStrFormatter('%.1e'))
     # plt.tight_layout()
     # plt.show()
+
+
+def agg_data_analysis(minima_models_list, n_runs = 50, offset = 100):
+    print("aggregate analysis: %s runs, offset = %s" %(n_runs, offset))
+
+    # histogram of runs
+    run_hist = np.zeros(n_runs)
+    for model in minima_models_list:
+        #print(model)
+        run_n = int(np.round(model*offset)) - int(offset*np.floor(model))  # get run number
+        #print(run_n)
+        run_hist[run_n] = run_hist[run_n] + 1  # add count to histogram
+    print(run_hist)
+    print("highly fit models in %s/%s runs" % (np.count_nonzero(run_hist),n_runs))
+
+    #exit()
+    fig = plt.figure(figsize=(30, 10))
+    ax1 = fig.add_subplot('111') 
+    ax1.set_title("Distribution of highly fit models\n%s/%s runs have highly fit models" % (np.count_nonzero(run_hist),n_runs))
+    ax1.set_ylabel('Count')
+    ax1.set_xlabel('Run number')
+    ax1.bar(range(n_runs),run_hist, align='edge')
+    plt.show()
+    exit()
+    # fraction of runs with good proofreading models
 
 
 
