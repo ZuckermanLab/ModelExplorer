@@ -1,0 +1,232 @@
+#ModelExplorer config file (using config::simple)
+#format: 'keyname value'. No apostrophe, w/ space as delimiter.
+#no comments on same line as key/value pair
+#default values in code/readme
+
+# Latin square
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+
+#sampling config
+temp_scale 1
+demax 1
+b_min 1e-5
+b_max 1e30
+n_beta 1
+
+#simulation config
+directory runs
+seed 456789
+nsteps 1e3
+graph 0
+dprint 1e1
+tol 0.3
+
+#transporter type
+energy_function symporter
+
+##physical parameters
+#na_first 1
+dmu_N -4
+dmu_S 2
+dmu_W 2
+#fmu_N 0.5
+#fmu_S 0.5
+#fmu_W 0.5
+
+##proofreading parameters
+proof 1
+alpha 1
+dg_sw 1
+Sb_Wb_tied 3
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory runs
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory runs
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory runs
+nsteps 1e3
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory runs
+nsteps 1e3
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory runs
+nsteps 1e2
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory runs
+nsteps 1e2
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory runs
+nsteps 1e2
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory runs
+nsteps 1e2
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory runs
+nsteps 1e2
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory runs
+nsteps 1e2
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory runs
+nsteps 1e2
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory runs
+nsteps 1e2
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory runs
+nsteps 1e2
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory runs
+nsteps 1e2
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory runs
+nsteps 1e2
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory runs
+nsteps 1e2
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory runs
+nsteps 1e2
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory runs
+nsteps 1e2
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory runs
+nsteps 1e2
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory runs
+nsteps 1e3
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory runs
+nsteps 1e3
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory runs
+nsteps 1e1
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory runs
+nsteps 2e3
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory runs
+nsteps 5e3
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory runs
+nsteps 5e3
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory runs
+nsteps 1e4
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory runs
+nsteps 5e3
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory runs
+nsteps 5e3
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory runs
+nsteps 5e3
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory runs
+nsteps 5e3
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory runs
+nsteps 5e3
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory runs
+nsteps 5e3
