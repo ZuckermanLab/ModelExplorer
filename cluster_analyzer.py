@@ -34,7 +34,7 @@ def import_data(datafile, proof=0):
 ### Slices array into three seperate arrays (1st col, 2nd col, remaining col).
 ### Returns col1 as a row, col2 as a row, remaning columns.
 ### This is useful for processing the imported cluster_data.dat file [mc_n, mc_e,...flows...]
-def slice_array(array):
+def slice_array(array, run_length,offset,sample_rate):
     """
     Slices array into 6 sections: MC step number, MC energy, state flows,
     N flow, S flow, and W flow.
@@ -54,14 +54,15 @@ def slice_array(array):
 
     # for aggregate 
     agg = True
-    run_length = 5e3
-    sample_rate = 1e1
+    #run_length = 1e3
+    #sample_rate = 1e1
     samples_per_run = run_length / sample_rate +1  # extra point sampled
-    
+    offset = 1/offset
+
     if agg:
         print("labeling for aggregation")
         for i in range(len(n)):
-            n[i] = n[i] + (0.01*np.floor(i/samples_per_run))  # add .0x to label data to run x
+            n[i] = n[i] + (offset*np.floor(i/samples_per_run))  # add .0x to label data to run x
     
     return n, emc, state_flows, N_flow, S_flow, W_flow
 
@@ -78,7 +79,7 @@ def create_cluster(matrix, minima):
         return minima
     #square_dist_matrix = squareform(dist)
     Z = linkage(dist, 'complete')  # complete clustering
-    fig = plt.figure(figsize=(15,15))
+    fig = plt.figure(figsize=(45,15))
     with plt.rc_context({'lines.linewidth': 1}):
         dn = dendrogram(
             Z,
@@ -112,7 +113,7 @@ def create_cluster(matrix, minima):
     # plt.annotate("cluster C", xy = (0.60,0.23), xycoords = 'axes fraction', fontsize=22)
     # plt.annotate("cluster D", xy = (0.85,0.46), xycoords = 'axes fraction', fontsize=22)
     plt.savefig("model_heirarchy_cluster_complete.png", format='png', bbox_inches='tight')
-    plt.show()
+    #plt.show()
     leaves = dn['ivl']  # get leaves of cluster
     #print(leaves)
     cleaned_leaves = [x for x in leaves if str(x).replace(
@@ -249,7 +250,6 @@ def normalize_flows(a):
     '''
     Normalizes an array of flows
     '''
-    
     b = np.linalg.norm(a, axis=1, keepdims=True)
     zero_rates = np.where(b == 0)[0]
     if zero_rates.size > 0:
@@ -324,13 +324,13 @@ def find_proofreading(s_flows, w_flows, n_flows, minima_indices, ddg=1.0, n=1, t
 
 
 ### Package all data processing (before clustering) into one subroutine
-def process_data(datafile, graph=0, proof=0, threshold = 0, proof_thresh = 1e-10):
+def process_data(datafile, graph=0, proof=0, threshold = 0, proof_thresh = 1e-10, run_length =1e3, offset = 1, sample_rate=1e1):
     #print("processing data...\n")
-    run_length = 1e2
-    d_print = 1e1
+    
+    
     data = import_data(datafile, proof)  # cluster_data.dat is [mc_n, mc_e,...flows...]
     # mc_n, mc_e, flow_data, n_flow, s_flow, w_flow = slice_array(data[:int(run_length/d_print)])
-    mc_n, mc_e, flow_data, n_flow, s_flow, w_flow = slice_array(data[:])
+    mc_n, mc_e, flow_data, n_flow, s_flow, w_flow = slice_array(data[:], run_length=run_length,offset=offset,sample_rate=sample_rate)
   
     n_models = len(mc_n)
     #thresh = np.max(mc_e)+1  # all models
@@ -366,6 +366,7 @@ def process_data(datafile, graph=0, proof=0, threshold = 0, proof_thresh = 1e-10
     minima_flows = get_flows(flow_data, minima_indices)
     #old_processed_flows = normalize_and_threshold_flows(minima_flows)
     processed_flows = normalize_flows(minima_flows)
+   
     #processed_flows = processed_flows[:int(2e6/500)]  # threshold on/off
 
 
@@ -465,7 +466,7 @@ def process_data(datafile, graph=0, proof=0, threshold = 0, proof_thresh = 1e-10
         plt.xlabel("MC step number")
         plt.title("Number of 'good' models during an MC run")
         plt.legend(loc='best')
-        plt.show()
+        #plt.show()
         plt.savefig("good_models_mc_run.png",
                     format='png', bbox_inches='tight')
 
@@ -638,14 +639,16 @@ def avg_cluster_change_time(clusters, models_list, max = 2.5e6):
 ### 5) normalize net flows of minima, 6) graph mc_n and mc_e w/ minima
 ### 7) cluster models based on normalized net flows of energy minima models
 ### 8) run analysis script for each energy minima model
-def cluster_and_analyze_one_run(datafile, analyze=None, graph=1, proof=0, threshold=1e+100):
+def cluster_and_analyze_one_run(datafile, analyze=None, graph=1, proof=0, threshold=1e+100, run_length=1e6, n_runs = 1, sample_rate=1e1):
         print("clustering and analyzing one run: %s\n" % datafile)
         start_time = time.time()  # testing for runtime data
         print("processing data...\n")
+        offset = 1*10**(int(np.log10(n_runs)+1))
+        print("offest = %s" %offset)
         processed_flows, minima_models_list, report = process_data(
-            datafile, graph=graph, proof=proof, threshold=threshold)
-
-        agg_data_analysis(minima_models_list)    
+            datafile, graph=graph, proof=proof, threshold=threshold, run_length=run_length, offset=offset, sample_rate=sample_rate)
+        n_steps = run_length
+        agg_data_analysis(minima_models_list, offset = offset, n_steps=n_steps, n_runs=n_runs)    
         print("clustering data...\n")
         cluster_models = create_cluster(processed_flows, minima_models_list)
         #print(cluster_models)
@@ -667,7 +670,7 @@ def cluster_and_analyze_one_run(datafile, analyze=None, graph=1, proof=0, thresh
         ax1.set_xlabel("Monte Carlo iteration number [n]")
         ax1.xaxis.set_major_formatter(mtick.FormatStrFormatter('%.1e'))
         plt.tight_layout()
-        plt.show()
+        #plt.show()
         
         if analyze == 'Run1':
             print("analyzing models...\n")
@@ -679,6 +682,8 @@ def cluster_and_analyze_one_run(datafile, analyze=None, graph=1, proof=0, thresh
             print("Models analyzed: %s" % (len(cluster_models[0])))
         print("Runtime: %s (s)" % (runtime))
         print(time.strftime("%Y-%m-%d %H:%M"))
+
+        return (minima_models_list, processed_flows)
 
 
 def compare_and_analyze_two_runs(datafile1, datafile2, thresh, analyze=None):
@@ -738,7 +743,7 @@ def compare_n_runs(run_list, thresh, flow_thresh = None):
     plt.yscale('log')
     plt.grid(b=True, which='both', axis='both')
     plt.tight_layout()
-    plt.show()
+    #plt.show()
     runtime = time.time()-start_time
     print("Total Runtime: %s (s)" % runtime)
     print(time.strftime("%Y-%m-%d %H:%M"))
@@ -890,7 +895,7 @@ def aggregate_analysis():
         ax1.xaxis.set_major_formatter(mtick.FormatStrFormatter('%.0e'))
         ax1.yaxis.set_major_formatter(mtick.FormatStrFormatter('%.0e'))
     #plt.tight_layout()
-    plt.show()
+    #plt.show()
 
     plt.close()
 
@@ -921,7 +926,7 @@ def aggregate_analysis():
         plt.xticks(np.arange(0, 1.1e6, 1e5))
         ax1.xaxis.set_major_formatter(mtick.FormatStrFormatter('%.0e'))
     #plt.tight_layout()
-    plt.show()
+    #plt.show()
 
 
 
@@ -942,37 +947,112 @@ def aggregate_analysis():
     # plt.show()
 
 
-def agg_data_analysis(minima_models_list, n_runs = 50, offset = 100):
-    print("aggregate analysis: %s runs, offset = %s" %(n_runs, offset))
+def agg_data_analysis(minima_models_list, n_runs = 6*50, offset = 1000, n_steps = 1e3):
+    print("aggregate analysis: %s runs, offset = %s, n steps: %s\n" %(n_runs, offset,n_steps))
 
+    def avg(list_of_times):
+        return sum(list_of_times)/len(list_of_times)
+
+    # models in run
+    steps_to_min = []
+    avg_per_run = []
+    min_per_run = []
+    run_n_0 = 0
     # histogram of runs
     run_hist = np.zeros(n_runs)
     for model in minima_models_list:
-        #print(model)
+        model_n = int(offset*np.floor(model))/(offset)
         run_n = int(np.round(model*offset)) - int(offset*np.floor(model))  # get run number
         #print(run_n)
         run_hist[run_n] = run_hist[run_n] + 1  # add count to histogram
-    print(run_hist)
+        if run_n == run_n_0:
+            steps_to_min.append(model_n)
+        else:
+            try:
+                avg_per_run.append(sum(steps_to_min)/len(steps_to_min))
+                min_per_run.append(min(steps_to_min))
+            except:
+                pass         
+            run_n_0 = run_n
+            steps_to_min.clear()
+            steps_to_min.append(model_n)
+    try:
+        avg_per_run.append(sum(steps_to_min)/len(steps_to_min)) # store last one
+        min_per_run.append(min(steps_to_min))
+        print("min time to find filtered model (using best run): %s" % min(min_per_run))
+
+        print("avg MIN mc n to find filtered models (using only good runs): %s" %avg(min_per_run))
+
+        min_per_run.extend([n_steps for i in range(int(n_runs - len(min_per_run)))])
+        print("avg MIN mc n to find filtered models (using ALL runs): %s" %avg(min_per_run))
+
+        print("avg mc n to find filtered models (using only good runs): %s" %avg(avg_per_run))
+
+        avg_per_run.extend([n_steps for i in range(int(n_runs - len(avg_per_run)))])
+        print("avg mc n to find filtered models (using ALL runs): %s" %avg(avg_per_run))
+    except:
+        print("no models found")
+  
+    #print(run_hist)
     print("highly fit models in %s/%s runs" % (np.count_nonzero(run_hist),n_runs))
+    print(run_hist)
+    
+    if np.count_nonzero(run_hist) != 0:
+        fig = plt.figure(figsize=(30, 10))
+        ax1 = fig.add_subplot('111') 
+        ax1.set_title("Distribution of highly fit models\n%s/%s runs have highly fit models" % (np.count_nonzero(run_hist),n_runs))
+        ax1.set_ylabel('Count')
+        ax1.set_xlabel('Run number')
+        ax1.bar(range(n_runs),run_hist, align='edge')
+        plt.savefig("filtered_models_distribution.png", format='png', bbox_inches='tight')
 
-    #exit()
-    fig = plt.figure(figsize=(30, 10))
-    ax1 = fig.add_subplot('111') 
-    ax1.set_title("Distribution of highly fit models\n%s/%s runs have highly fit models" % (np.count_nonzero(run_hist),n_runs))
-    ax1.set_ylabel('Count')
-    ax1.set_xlabel('Run number')
-    ax1.bar(range(n_runs),run_hist, align='edge')
-    plt.show()
+    
 
 
+def analyze_experiments():
+    print("analyzing experiments...aggregate")
+    # initialize data
+    print("experiment 1")
+    (min_list1, flows1) = cluster_and_analyze_one_run("cluster_data_agg1.dat", analyze='None',
+                              graph=0, proof=1, threshold=1e+100, run_length=5e3, n_runs = 6*50, sample_rate=1e1)
+    exp1= [str(x) + '.1' for x in min_list1]
 
+    print("experiment 2")
+    (min_list2, flows2) = cluster_and_analyze_one_run("cluster_data_agg2.dat", analyze='None',
+                              graph=0, proof=1, threshold=1e+100, run_length=1e3, n_runs = 6*50, sample_rate=1e1)
+    exp2= [str(x) + '.2' for x in min_list2]
+
+    print("experiment 3")
+    (min_list3, flows3) = cluster_and_analyze_one_run("cluster_data_agg3.dat", analyze='None',
+                              graph=0, proof=1, threshold=1e+100, run_length=1e4, n_runs = 6*50, sample_rate=1e1)
+    exp3= [str(x) + '.3' for x in min_list3]
+
+    print("experiment 4")
+    (min_list4, flows4) = cluster_and_analyze_one_run("cluster_data_agg4.dat", analyze='None',
+                              graph=0, proof=1, threshold=1e+100, run_length=5e2, n_runs = 6*50, sample_rate=1e1)
+    exp4= [str(x) + '.4' for x in min_list4]
+
+    flows_agg = np.vstack([flows1,flows2, flows3,flows4])
+    exp_label_agg = exp1 + exp2 + exp3 + exp4
+
+    print("aggregate data...")
+    cluster_models = create_cluster(flows_agg, exp_label_agg)
+    clustering = fcluster(cluster_models[1], t=0.65, criterion='distance')
+    exit()
+    
+    # for each experiment
+    # get good models (need label x.ab where a is the experiment number and b is the run number)
+    # append to good models list
+    # cluster these models
+
+    pass
 
 def main():
+    analyze_experiments()
+    (minima_models_list, processed_flows) = cluster_and_analyze_one_run("cluster_data_agg.dat", analyze='None',
+                              graph=0, proof=1, threshold=1e+100, run_length=1e2, n_runs = 50, sample_rate=1e1)  # "Run1" to analyze
 
-    cluster_and_analyze_one_run("cluster_data_agg.dat", analyze='None',
-                              graph=0, proof=1, threshold=1e+100)  # "Run1" to analyze
-
-
+    
     #compare_and_analyze_two_runs("cluster_data.dat","cluster_data_ts1_d1.dat", .01)
 
     # runs = [("cluster_data_d0_0_1.dat", 0.01),
