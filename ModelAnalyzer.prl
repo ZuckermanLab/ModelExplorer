@@ -9,7 +9,7 @@ use List::Util qw(first);
 use File::Copy qw(copy);
 use Cwd qw(chdir);
 use Storable qw(dclone);
-use Win32; # for error popup dialog
+#use Win32; # for error popup dialog
 use Chart::Gnuplot;
 #use strict; #errors out
 
@@ -108,6 +108,7 @@ $Sb_Wb_tied = $parameters{"Sb_Wb_tied"}; #controls how "tied" Sb and Wb barriers
 #... 3: both 1 and 2
 $energy_function = $parameters{"energy_function"};
 $graph = $parameters{"graph"}; #turns on pathway and flow graphing
+$initial_model_n = $parameters{"initial_model_n"}; 
 if ( $proof!=1 ) { #if proof reading is turned off, there is no 'W'
   $Sb_Wb_tied =0;
   $dg_SW = 0;
@@ -1869,8 +1870,8 @@ sub python_networkx {
 };
 
 sub import_from_python {
-    my $state_filename = "python_to_perl_state";
-    my $transition_filename = "python_to_perl_transition";
+    my $state_filename = "python_to_perl_state"."_".$initial_model_n;
+    my $transition_filename = "python_to_perl_transition"."_".$initial_model_n;
 
     open my $fh2, "<", "$state_filename" or die "Could not open file '$state_filename' ";
     my $state_consistency_flag = <$fh2>;
@@ -2030,6 +2031,7 @@ sub load_config_settings {
     adjust_barrier => "",
     adjust_state => "",  # not using
     energy_adjustment => 0,
+    initial_model_n => 0,
   );
   my @required_parameters = ( # Required paramters to be in config file
     "proof", "na_first", # Simulation Parameters
@@ -2047,6 +2049,7 @@ sub load_config_settings {
     "energy_function", #which energy function to use (i.e. for symport or antiport)
     "graph", #turn on/off graphing of flows
     "manually_adjust", "adjust_barrier","adjust_state","energy_adjustment",  # parameters for manual adjustments of state/barrier energy
+    "initial_model_n", 
   );
   my %config;
   Config::Simple->import_from( $config_file, \%config);
@@ -2337,9 +2340,10 @@ sub graph_flows {
   #multiplot wasn't working so make two seperate images
   if ($sub_datafile =~ m/dmu_N/){
     #make a new chart. note that gnuplot path needs to be specified in Windows
+    # gnuplot => "C:\\Program Files\\gnuplot\\bin\\gnuplot.exe",
       $left = Chart::Gnuplot->new(
         output => "absolute_flows.png",
-        gnuplot => "C:\\Program Files\\gnuplot\\bin\\gnuplot.exe",
+        
         terminal => 'png',
         title  => "Absolute Flows: Varying dMu N",
         timestamp => "on",
@@ -2348,7 +2352,6 @@ sub graph_flows {
       );
       $right = Chart::Gnuplot->new(
         output => "relative_flows.png",
-        gnuplot => "C:\\Program Files\\gnuplot\\bin\\gnuplot.exe",
         terminal => 'png',
         title  => "Relative Flows: Varying dMu N",
         timestamp => "on",
@@ -2359,7 +2362,6 @@ sub graph_flows {
     #make a new chart. note that gnuplot path needs to be specified in Windows
       $left= Chart::Gnuplot->new(
         output => "absolute_flows.png",
-        gnuplot => "C:\\Program Files\\gnuplot\\bin\\gnuplot.exe",
         terminal => 'png',
         title  => "Absolute Flows: Varying dMu S",
         timestamp => "on",
@@ -2368,7 +2370,6 @@ sub graph_flows {
         );
       $right = Chart::Gnuplot->new(
         output => "relative_flows.png",
-        gnuplot => "C:\\Program Files\\gnuplot\\bin\\gnuplot.exe",
         terminal => 'png',
         title  => "Relative Flows: Varying dMu S",
         timestamp => "on",
@@ -2379,7 +2380,6 @@ sub graph_flows {
     #make a new chart. note that gnuplot path needs to be specified in Windows
       $left = Chart::Gnuplot->new(
         output => "absolute_flows.png",
-        gnuplot => "C:\\Program Files\\gnuplot\\bin\\gnuplot.exe",
         terminal => 'png',
         title  => "Absolute Flows: Varying dMu W",
         timestamp => "on",
@@ -2388,7 +2388,6 @@ sub graph_flows {
       );
       $right = Chart::Gnuplot->new(
         output => "relative_flows.png",
-        gnuplot => "C:\\Program Files\\gnuplot\\bin\\gnuplot.exe",
         terminal => 'png',
         title  => "Relative Flows: Varying dMu W",
         timestamp => "on",
@@ -2398,7 +2397,6 @@ sub graph_flows {
   } else {
       $left = Chart::Gnuplot->new(
         output => "absolute_flows.png",
-        gnuplot => "C:\\Program Files\\gnuplot\\bin\\gnuplot.exe",
         terminal => 'png',
         title  => "Absolute Flows",
         timestamp => "on",
@@ -2407,7 +2405,6 @@ sub graph_flows {
       );
       $right = Chart::Gnuplot->new(
         output => "relative_flows.png",
-        gnuplot => "C:\\Program Files\\gnuplot\\bin\\gnuplot.exe",
         terminal => 'png',
         title  => "RelativeFlows",
         timestamp => "on",

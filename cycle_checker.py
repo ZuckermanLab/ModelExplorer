@@ -228,11 +228,14 @@ def export_to_file(DATA,DATA2,FLAG, FILENAME):
 #Flow: import/format data -> create adjacency graph -> create subgraphs -> check each subgraph for consistency
 #->prune subgraph to tree -> create energy landscape data -> export to file
 def main():
-    n = 50
-    e_min = -1
-    e_max = 1
+    n = 50  # number of samples in single Latin square
+    delta_e = 12  # energy range allowed for states and transitions
+
+    e_min = -1*delta_e/2
+    e_max = 1*delta_e/2
     b_min = 0
-    b_max = 2
+    b_max = delta_e
+
 
     adjacency_file = "adjacent_matrix.csv"
     energies_file = "energies_matrix.csv"

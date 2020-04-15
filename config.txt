@@ -41,153 +41,6 @@ alpha 1
 dg_sw 1
 Sb_Wb_tied 3
 
-INITIALIZE_ONLY 1
-LOAD_MODEL 0
-initial_model_n 0
-directory runs
-
-INITIALIZE_ONLY 1
-LOAD_MODEL 0
-initial_model_n 0
-directory runs
-
-INITIALIZE_ONLY 1
-LOAD_MODEL 0
-initial_model_n 0
-directory runs
-nsteps 1e3
-
-INITIALIZE_ONLY 1
-LOAD_MODEL 0
-initial_model_n 0
-directory runs
-nsteps 1e3
-
-INITIALIZE_ONLY 1
-LOAD_MODEL 0
-initial_model_n 0
-directory runs
-nsteps 1e2
-
-INITIALIZE_ONLY 1
-LOAD_MODEL 0
-initial_model_n 0
-directory runs
-nsteps 1e2
-
-INITIALIZE_ONLY 1
-LOAD_MODEL 0
-initial_model_n 0
-directory runs
-nsteps 1e2
-
-INITIALIZE_ONLY 1
-LOAD_MODEL 0
-initial_model_n 0
-directory runs
-nsteps 1e2
-
-INITIALIZE_ONLY 1
-LOAD_MODEL 0
-initial_model_n 0
-directory runs
-nsteps 1e2
-
-INITIALIZE_ONLY 1
-LOAD_MODEL 0
-initial_model_n 0
-directory runs
-nsteps 1e2
-
-INITIALIZE_ONLY 1
-LOAD_MODEL 0
-initial_model_n 0
-directory runs
-nsteps 1e2
-
-INITIALIZE_ONLY 1
-LOAD_MODEL 0
-initial_model_n 0
-directory runs
-nsteps 1e2
-
-INITIALIZE_ONLY 1
-LOAD_MODEL 0
-initial_model_n 0
-directory runs
-nsteps 1e2
-
-INITIALIZE_ONLY 1
-LOAD_MODEL 0
-initial_model_n 0
-directory runs
-nsteps 1e2
-
-INITIALIZE_ONLY 1
-LOAD_MODEL 0
-initial_model_n 0
-directory runs
-nsteps 1e2
-
-INITIALIZE_ONLY 1
-LOAD_MODEL 0
-initial_model_n 0
-directory runs
-nsteps 1e2
-
-INITIALIZE_ONLY 1
-LOAD_MODEL 0
-initial_model_n 0
-directory runs
-nsteps 1e2
-
-INITIALIZE_ONLY 1
-LOAD_MODEL 0
-initial_model_n 0
-directory runs
-nsteps 1e2
-
-INITIALIZE_ONLY 1
-LOAD_MODEL 0
-initial_model_n 0
-directory runs
-nsteps 1e2
-
-INITIALIZE_ONLY 1
-LOAD_MODEL 0
-initial_model_n 0
-directory runs
-nsteps 1e3
-
-INITIALIZE_ONLY 1
-LOAD_MODEL 0
-initial_model_n 0
-directory runs
-nsteps 1e3
-
-INITIALIZE_ONLY 1
-LOAD_MODEL 0
-initial_model_n 0
-directory runs
-nsteps 1e1
-
-INITIALIZE_ONLY 1
-LOAD_MODEL 0
-initial_model_n 0
-directory runs
-nsteps 2e3
-
-INITIALIZE_ONLY 1
-LOAD_MODEL 0
-initial_model_n 0
-directory runs
-nsteps 5e3
-
-INITIALIZE_ONLY 1
-LOAD_MODEL 0
-initial_model_n 0
-directory runs
-nsteps 5e3
 
 INITIALIZE_ONLY 1
 LOAD_MODEL 0
@@ -199,34 +52,142 @@ INITIALIZE_ONLY 1
 LOAD_MODEL 0
 initial_model_n 0
 directory runs
-nsteps 5e3
+nsteps 1e4
 
 INITIALIZE_ONLY 1
 LOAD_MODEL 0
 initial_model_n 0
 directory runs
-nsteps 5e3
+nsteps 1e4
 
 INITIALIZE_ONLY 1
 LOAD_MODEL 0
 initial_model_n 0
 directory runs
-nsteps 5e3
+nsteps 1e4
 
 INITIALIZE_ONLY 1
 LOAD_MODEL 0
 initial_model_n 0
 directory runs
-nsteps 5e3
+nsteps 1e4
 
 INITIALIZE_ONLY 1
 LOAD_MODEL 0
 initial_model_n 0
 directory runs
-nsteps 5e3
+nsteps 1e4
 
 INITIALIZE_ONLY 1
 LOAD_MODEL 0
 initial_model_n 0
 directory runs
-nsteps 5e3
+nsteps 1e4
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory runs
+nsteps 1e3
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory runs
+nsteps 1000.0
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory runs
+nsteps 1000.0
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory runs
+nsteps 1000.0
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory runs
+nsteps 1000.0
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory runs
+nsteps 500.0
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory runs_500.0_1
+nsteps 500.0
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory runs_500_2
+nsteps 500.0
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory runs_500_3
+nsteps 500.0
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory runs_500_4
+nsteps 500.0
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory runs_500_5
+nsteps 500.0
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory runs_100_0
+nsteps 100.0
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory runs_1000_8
+nsteps 1000.0
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory runs_100_1
+nsteps 100.0
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory runs_100_2
+nsteps 100.0
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory runs_100_3
+nsteps 100.0
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory runs_100_4
+nsteps 100.0
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory runs_100_5
+nsteps 100.0

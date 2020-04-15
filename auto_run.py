@@ -6,16 +6,19 @@ from time import sleep,time
 from shutil import copy, copyfileobj
 
 # configuration
-subdirectory = 'runs'
+trial = 5
+run_length = 1e2
+subdirectory = 'runs_%s_%s' %(int(run_length),trial)
 config_file = 'config.txt'
 cluster_folder = "cluster_analysis"
 n = 50
+
 root_dir = os.path.abspath(os.path.curdir)
 
 start_time = time() 
 
 ### initialize  - run latin square once to get values
-config_settings = "\nINITIALIZE_ONLY 1\nLOAD_MODEL 0\ninitial_model_n 0\ndirectory runs\nnsteps 5e3\n"
+config_settings = "\nINITIALIZE_ONLY 1\nLOAD_MODEL 0\ninitial_model_n 0\ndirectory %s\nnsteps %s\n" % (subdirectory, run_length)
 f = open(config_file, 'a')
 f.write(config_settings)
 f.close()
@@ -72,7 +75,7 @@ for i in range(n):
                     outfile.write(line)
 
 runtime = time()-start_time  # testing for runtime data
-print(runtime)
+print("%s s" % runtime)
 
 ### clustering analysis
 # change working directory to analysis 

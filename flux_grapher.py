@@ -53,7 +53,7 @@ def graph_pathways(sub_weighted_edge_list, sub_image_file_name, sub_analysis_lab
     e_labels = nx.get_edge_attributes(G,'weight')
 
     nx.draw_networkx_nodes(G,pos, node_size=600)
-    nx.draw_networkx_edges(G,pos,  alpha=0.50)
+    nx.draw_networkx_edges(G,pos,  alpha=0.50, arrowsize=20)
     nx.draw_networkx_edge_labels(G,pos, label_pos=0.5, edge_labels=e_labels)
     nx.draw_networkx_labels(G,pos)
     plt.axis('off')
@@ -61,7 +61,7 @@ def graph_pathways(sub_weighted_edge_list, sub_image_file_name, sub_analysis_lab
     #scales figure so it fits
     l,r = plt.xlim()
     b,t = plt.ylim()
-    plt.xlim(l-30,r+15)
+    plt.xlim(l-30,r+30)
     plt.ylim(b-5,t+5)
     plt.suptitle("Transporter (Relative) Flux Pathway",)
     plt.title(title, fontsize=6)
@@ -74,7 +74,7 @@ def graph_pathways(sub_weighted_edge_list, sub_image_file_name, sub_analysis_lab
 # Data is imported from a .csv with format: (state A, state B, Flux AB)
 def import_data(sub_data_file):
     data_file = sub_data_file
-    raw_data = np.genfromtxt(data_file, delimiter=',', dtype=None)
+    raw_data = np.genfromtxt(data_file, delimiter=',', dtype=None, encoding=None)
     data_labels = []
     data_no_labels = []
     data_labels.append(raw_data[0][0])

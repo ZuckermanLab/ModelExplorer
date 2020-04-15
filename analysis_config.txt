@@ -3,12 +3,14 @@
 #no comments on same line as key/value pair
 #default values in code/readme
 
+initial_model_n 5
+
 #energy files
-efile_init energies-29000
-bfile_init barriers-29000
+efile_init energies-450
+bfile_init barriers-450
 
 #simulation config
-directory model_n29000
+directory model_n450
 seed 456789
 nsteps 1e2
 graph 1

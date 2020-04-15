@@ -963,8 +963,6 @@ def agg_data_analysis(minima_models_list, n_runs = 50, offset = 100):
     ax1.set_xlabel('Run number')
     ax1.bar(range(n_runs),run_hist, align='edge')
     plt.show()
-    exit()
-    # fraction of runs with good proofreading models
 
 
 
