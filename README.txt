@@ -1,3 +1,6 @@
+Examining the transient behavior of seperate transport cycles
+
+..................... from main branch .................................
 On-going research into systems-based modeling of molecular machines. 
 
 For an overview of the general methods used, see the preprint: https://www.biorxiv.org/content/10.1101/685933v3
