@@ -31,7 +31,7 @@ def latin_square(x_limits, n):
     #  see smt library tutorial online
     sampling = LHS(xlimits=x_limits)  # set limits for latin square values
     x = sampling(n)  #  sample n points in Latin square (hypercube)
-    return x  #
+    return x  
 
 
 
@@ -39,30 +39,30 @@ def latin_square(x_limits, n):
 def adjacency_matrix_to_graph(ADJACENCY_MATRIX):
     adj = ADJACENCY_MATRIX
 
-    print("adj matrix")
-    pprint.pprint(adj)
+    #print("adj matrix")
+    #pprint.pprint(adj)
 
     rows, cols = np.where(adj == 1) # finds row & col elements that are connected
 
-    print("rows")
-    pprint.pprint(rows)
-    print("cols")
-    pprint.pprint(cols)
+    #print("rows")
+    #pprint.pprint(rows)
+    #print("cols")
+    #pprint.pprint(cols)
 
     edges = zip(rows.tolist(), cols.tolist()) #creates a list of tuples from row & col lists
 
-    print("edges")
-    pprint.pprint(edges)
+    # print("edges")
+    # pprint.pprint(edges)
 
     gr = nx.Graph() # creates a networkx graph var
 
-    print ("gr")
-    pprint.pprint(gr)
+    # print ("gr")
+    # pprint.pprint(gr)
 
     gr.add_edges_from(edges) # adds edges to graph (i.e. creates the graph)
 
-    print("gr add edges")
-    pprint.pprint(gr)
+    # print("gr add edges")
+    # pprint.pprint(gr)
 
 
     return gr
@@ -91,7 +91,7 @@ def check_and_prune_cycle(SUB_ADJACENCY_GRAPH,ENERGIES_MATRIX):
         if (en_sum !=0): #if sum of energy is not zero, cycle is inconsistent
             en_sum = 0
             cycle = False
-            consistent = ""
+            consistent = "0"
             return gr, consistent #cycle is inconsistent, exit
         else:
             gr.remove_edge(cycle[0][0],cycle[0][1]) #removes first edge
@@ -112,9 +112,9 @@ def import_and_format_data(ADJACENCY_FILE,ENERGIES_FILE, TRANSITION_ADJACENCY_FI
     raw_transition_adjacency_data = np.genfromtxt(TRANSITION_ADJACENCY_FILE, delimiter=',', dtype=None, encoding=None)
     raw_transition_energies_data = np.genfromtxt(TRANSITION_ENERGY_FILE, delimiter=',', dtype=None, encoding=None)
 
-    print("raw_transition_adjacency_data")
+    #print("raw_transition_adjacency_data")
     np.set_printoptions(threshold=sys.maxsize)
-    pprint.pprint(raw_transition_adjacency_data)
+    #pprint.pprint(raw_transition_adjacency_data)
 
     label_data = raw_adjacency_data[1:, 0:1].tolist() #labels from only first column, each row after first row
     n = len(label_data) #dimension of nxn matrix = number of labels
@@ -122,26 +122,26 @@ def import_and_format_data(ADJACENCY_FILE,ENERGIES_FILE, TRANSITION_ADJACENCY_FI
     transition_label_data = raw_transition_adjacency_data[1:, 0:1].tolist()
     transition_n = len(transition_label_data)
 
-    print("transition_label_data")
+    #print("transition_label_data")
     np.set_printoptions(threshold=sys.maxsize)
-    pprint.pprint(transition_n)
-    pprint.pprint(transition_label_data)
+    #pprint.pprint(transition_n)
+    #pprint.pprint(transition_label_data)
 
     init_adjacency_matrix = raw_adjacency_data[1:n+1,1:n+1].astype(np.int) #skip labels, ends before null char, make list
     init_energies_matrix = raw_energies_data[1:n+1,1:n+1].astype(np.float) # matrix[x][y] is value at row x, col y
     init_transition_adjacency_matrix = raw_transition_adjacency_data[1:transition_n+1,1:transition_n+1].astype(np.int) #skip labels, ends before null char, make list
     init_transitions_energies_matrix = raw_transition_energies_data[1:transition_n+1,1:transition_n+1].astype(np.float) # matrix[x][y] is value at row x, col y
 
-    print("init_transition_adjacency_matrix")
+    #print("init_transition_adjacency_matrix")
     np.set_printoptions(threshold=sys.maxsize)
-    pprint.pprint(init_transition_adjacency_matrix)
+    #pprint.pprint(init_transition_adjacency_matrix)
 
     init_labels = dict(zip(xrange(n), sum(label_data, [])[:])) #"flattens" list of lists into a single list
     init_transition_labels = dict(zip(xrange(transition_n), sum(transition_label_data, [])[:]))
 
-    print("init transition labels")
+    #print("init transition labels")
     np.set_printoptions(threshold=sys.maxsize)
-    pprint.pprint(init_transition_labels)
+    #pprint.pprint(init_transition_labels)
 
     return (init_adjacency_matrix, init_energies_matrix, init_labels, init_transition_adjacency_matrix, init_transitions_energies_matrix, init_transition_labels)
 
@@ -172,6 +172,7 @@ def draw_and_save_graph(GRAPH, FILENAME, TEXT_LABELS={}):
             labels = mapping, #use mapping dictionary {[node1:text1],[node2:text2]...} for labels
             pos = nx.spring_layout(gr,k=0.15,iterations=20))  #position nodes using spring layout (can be fine-tuned)
         plt.savefig("%s.png" %filename, dpi=250 )
+    print(gr.number_of_nodes())
 
 #Goes through tree graph and creates an "energy landscape" of a subgraph
 #Specifically, this creates a dictionary of states and relative energies to a reference state (first node)
@@ -195,11 +196,11 @@ def graph_to_data(TREE_GRAPH, ENERGIES, LABELS, MASTER_DICTIONARY, MASTER_SUBGRA
             labeled_data[lbls[node_list[0]]] = 0.0
         else:
             path = nx.shortest_path(gr, source = node_list[0], target = node) #find path between reference node and target node (list of nodes)
-            print("path %s" % path)
+            #print("path %s" % path)
             relative_energy = 0.0 #initlilize relative energy running total
             for i in xrange(len(path)-1): #for each edge in path
                 relative_energy = relative_energy + en[path[i]][path[i+1]] # add energy along path to previous energy. note using en[x][y] => edge(x->y)
-                print("relative_energy %s" % relative_energy)
+                #print("relative_energy %s" % relative_energy)
             data[path[len(path)-1]] = relative_energy #add to dictionary. key = last node in path, value = relative energies added along path
             labeled_data[lbls[path[len(path)-1]]] = relative_energy
     master_dictionary[lbls[node_list[0]]] = labeled_data # add to master dictionary. key = first node, value = dictionary of nodes and relative energies (energy landscape)
@@ -228,8 +229,8 @@ def export_to_file(DATA,DATA2,FLAG, FILENAME):
 #Flow: import/format data -> create adjacency graph -> create subgraphs -> check each subgraph for consistency
 #->prune subgraph to tree -> create energy landscape data -> export to file
 def main():
-    n = 50  # number of samples in single Latin square
-    delta_e = 12  # energy range allowed for states and transitions
+    n = 10  # number of samples in single Latin square
+    delta_e = 2  # energy range allowed for states and transitions
 
     e_min = -1*delta_e/2
     e_max = 1*delta_e/2
@@ -252,46 +253,46 @@ def main():
     (adjacency_matrix, energy_matrix, state_labels, transition_adjacency_matrix, transition_energy_matrix, transition_labels) = import_and_format_data(adjacency_file, energies_file, transition_adjacency_file, transition_energy_file) #import and format data
 
     np.set_printoptions(threshold=sys.maxsize)
-    print("transition_adjacency_matrix main")
-    pprint.pprint(transition_adjacency_matrix)
+    #print("transition_adjacency_matrix main")
+    #pprint.pprint(transition_adjacency_matrix)
 
-    print("state adjacency matrix to graph...")
+    #print("state adjacency matrix to graph...")
     adjacency_graph = adjacency_matrix_to_graph(adjacency_matrix) #create adjacency graph
 
-    print("transition adjacency matrix to graph...")
+    #print("transition adjacency matrix to graph...")
     transition_adjacency_graph = adjacency_matrix_to_graph(transition_adjacency_matrix)
 
-    print("transition_adjacency_graph main")
-    pprint.pprint(transition_adjacency_graph)
+    #print("transition_adjacency_graph main")
+    #pprint.pprint(transition_adjacency_graph)
 
-    print("transition energy matrix")
-    pprint.pprint(transition_energy_matrix)
+    #print("transition energy matrix")
+    #pprint.pprint(transition_energy_matrix)
 
     draw_and_save_graph(transition_adjacency_graph, "transition_adjacency_graph")
     draw_and_save_graph(adjacency_graph, "adjacency_graph")
 
-    print("graphs to subgraphs...")
+    #print("graphs to subgraphs...")
     subgraphs = graph_to_subgraph(adjacency_graph) #create subgraphs
     transition_subgraphs = graph_to_subgraph(transition_adjacency_graph)
 
     print("check and prune subgraphs...")
     print("checking state subgraphs...")
     for k in xrange(len(subgraphs)): #loop through each subgraph
-        print("checking subgraph %s" % k)
+        #print("checking subgraph %s" % k)
         (pruned_graph, consistent) = check_and_prune_cycle(subgraphs[k],energy_matrix) #set constistency flag for each subgraph
-        if not consistent: #check_and_prune_cycle function will set conistent ("" = false, string type used to allow text for "no cycles")
+        if consistent == "0": #check_and_prune_cycle function will set conistent ("" = false, string type used to allow text for "no cycles")
             error = True #set error flag
             print("ERROR! Cycles are not self-consistent!")
         else:
             print(consistent) #cycle is consistent or there are no cycles
         graph_to_data(pruned_graph,energy_matrix,state_labels, master_dictionary, master_subgraph_list) #adds to master dictionary and list
-    print(master_dictionary)
+    #print(master_dictionary)
     
     # fix later (don't repeat, make function)
     # latin square
     A = np.array([[e_min,e_max] for line in master_subgraph_list])
     B = latin_square(A, n)
-    print(B)
+    #print(B)
     for k in range(n):
         
         master_subgraph_list1 = copy.deepcopy(master_subgraph_list)
@@ -316,7 +317,7 @@ def main():
             #print("\n")
         # match with key in latin square dictionary
         # add latin square value to each value in dictionary
-        print(master_dictionary1)
+        #print(master_dictionary1)
         file_name = "python_to_perl_state_%s" % k
         export_to_file(master_dictionary1,master_subgraph_list1,error,file_name) #exports master dictionary and list
    
@@ -334,11 +335,11 @@ def main():
             print(consistent) #cycle is consistent or there are no cycles
         graph_to_data(transition_pruned_graph,transition_energy_matrix,transition_labels, master_transition_dictionary, master_transition_subgraph_list) #adds to master dictionary and list
         # latin square
-    print(master_transition_dictionary)
+    #print(master_transition_dictionary)
         # latin square
     A = np.array([[b_min,b_max] for line in master_transition_subgraph_list])
     B = latin_square(A, n)
-    print(B)
+    #print(B)
 
     for k in range(n):
         C = {}
@@ -362,7 +363,7 @@ def main():
             #print("\n")
         # match with key in latin square dictionary
         # add latin square value to each value in dictionary
-        print(master_transition_dictionary1)
+        #print(master_transition_dictionary1)
         file_name = "python_to_perl_transition_%s" % k
         export_to_file(master_transition_dictionary1,master_transition_subgraph_list1,error,file_name) #exports master dictionary and list
 

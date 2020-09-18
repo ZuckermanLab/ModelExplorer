@@ -3,34 +3,36 @@
 #no comments on same line as key/value pair
 #default values in code/readme
 
-initial_model_n 5
+initial_model_n 0
 
 #energy files
-efile_init energies-450
-bfile_init barriers-450
+efile_init energies-0
+bfile_init barriers-0
 
 #simulation config
-directory model_n450
+directory model_n0
 seed 456789
 nsteps 1e2
-graph 1
+graph 0
 tol 0.3
 
 
 #transporter type
-energy_function symporter
+energy_function antiporter
+analysis_type vary_dmu_S
 
 ##physical parameters
 #na_first 1
 dmu_N -4
-dmu_S 2
-dmu_W 2
+dmu_S -1
+
+#dmu_W 2
 #fmu_N 0.5
 #fmu_S 0.5
 #fmu_W 0.5
 
 ##proofreading parameters
-proof 1
+proof 0
 alpha 1
 dg_sw 1
 Sb_Wb_tied 3

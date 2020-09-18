@@ -16,7 +16,7 @@ b_max 1e30
 n_beta 1
 
 #simulation config
-directory runs
+directory testing_atp_2h_s_flows_test
 seed 456789
 nsteps 1e3
 graph 0
@@ -24,19 +24,21 @@ dprint 1e1
 tol 0.3
 
 #transporter type
-energy_function symporter
+energy_function antiporter
 
 ##physical parameters
 #na_first 1
+
 dmu_N -4
-dmu_S 2
-dmu_W 2
+dmu_S -1
+# for toxin pump
+#dmu_W 2
 #fmu_N 0.5
 #fmu_S 0.5
 #fmu_W 0.5
 
 ##proofreading parameters
-proof 1
+proof 0
 alpha 1
 dg_sw 1
 Sb_Wb_tied 3
@@ -45,149 +47,353 @@ Sb_Wb_tied 3
 INITIALIZE_ONLY 1
 LOAD_MODEL 0
 initial_model_n 0
-directory runs
-nsteps 1e4
-
-INITIALIZE_ONLY 1
-LOAD_MODEL 0
-initial_model_n 0
-directory runs
-nsteps 1e4
-
-INITIALIZE_ONLY 1
-LOAD_MODEL 0
-initial_model_n 0
-directory runs
-nsteps 1e4
-
-INITIALIZE_ONLY 1
-LOAD_MODEL 0
-initial_model_n 0
-directory runs
-nsteps 1e4
-
-INITIALIZE_ONLY 1
-LOAD_MODEL 0
-initial_model_n 0
-directory runs
-nsteps 1e4
-
-INITIALIZE_ONLY 1
-LOAD_MODEL 0
-initial_model_n 0
-directory runs
-nsteps 1e4
-
-INITIALIZE_ONLY 1
-LOAD_MODEL 0
-initial_model_n 0
-directory runs
-nsteps 1e4
-
-INITIALIZE_ONLY 1
-LOAD_MODEL 0
-initial_model_n 0
-directory runs
-nsteps 1e3
-
-INITIALIZE_ONLY 1
-LOAD_MODEL 0
-initial_model_n 0
-directory runs
+directory DEBUG_test_atp_3h_runs_1000_28
 nsteps 1000.0
 
 INITIALIZE_ONLY 1
 LOAD_MODEL 0
 initial_model_n 0
-directory runs
+directory DEBUG_test_atp_3h_runs_1000_28
 nsteps 1000.0
 
 INITIALIZE_ONLY 1
 LOAD_MODEL 0
 initial_model_n 0
-directory runs
+directory DEBUG_test_atp_3h_runs_1000_28
 nsteps 1000.0
 
 INITIALIZE_ONLY 1
 LOAD_MODEL 0
 initial_model_n 0
-directory runs
+directory DEBUG_test_atp_3h_runs_1000_28
 nsteps 1000.0
 
 INITIALIZE_ONLY 1
 LOAD_MODEL 0
 initial_model_n 0
-directory runs
-nsteps 500.0
-
-INITIALIZE_ONLY 1
-LOAD_MODEL 0
-initial_model_n 0
-directory runs_500.0_1
-nsteps 500.0
-
-INITIALIZE_ONLY 1
-LOAD_MODEL 0
-initial_model_n 0
-directory runs_500_2
-nsteps 500.0
-
-INITIALIZE_ONLY 1
-LOAD_MODEL 0
-initial_model_n 0
-directory runs_500_3
-nsteps 500.0
-
-INITIALIZE_ONLY 1
-LOAD_MODEL 0
-initial_model_n 0
-directory runs_500_4
-nsteps 500.0
-
-INITIALIZE_ONLY 1
-LOAD_MODEL 0
-initial_model_n 0
-directory runs_500_5
-nsteps 500.0
-
-INITIALIZE_ONLY 1
-LOAD_MODEL 0
-initial_model_n 0
-directory runs_100_0
-nsteps 100.0
-
-INITIALIZE_ONLY 1
-LOAD_MODEL 0
-initial_model_n 0
-directory runs_1000_8
+directory DEBUG_test_atp_3h_runs_1000_28
 nsteps 1000.0
 
 INITIALIZE_ONLY 1
 LOAD_MODEL 0
 initial_model_n 0
-directory runs_100_1
-nsteps 100.0
+directory DEBUG_test_atp_3h_runs_1000_28
+nsteps 1000.0
 
 INITIALIZE_ONLY 1
 LOAD_MODEL 0
 initial_model_n 0
-directory runs_100_2
-nsteps 100.0
+directory DEBUG_test_atp_3h_runs_1000_28
+nsteps 1000.0
 
 INITIALIZE_ONLY 1
 LOAD_MODEL 0
 initial_model_n 0
-directory runs_100_3
-nsteps 100.0
+directory DEBUG_test_atp_3h_runs_1000_28
+nsteps 1000.0
 
 INITIALIZE_ONLY 1
 LOAD_MODEL 0
 initial_model_n 0
-directory runs_100_4
-nsteps 100.0
+directory DEBUG_test_atp_3h_runs_1000_28
+nsteps 1000.0
 
 INITIALIZE_ONLY 1
 LOAD_MODEL 0
 initial_model_n 0
-directory runs_100_5
-nsteps 100.0
+directory DEBUG_test_atp_3h_runs_1000_28
+nsteps 1000.0
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory DEBUG_test_atp_3h_runs_1000_28
+nsteps 1000.0
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory DEBUG_test_atp_3h_runs_1000_28
+nsteps 1000.0
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory DEBUG_test_atp_3h_runs_1000_28
+nsteps 1000.0
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory DEBUG_test_atp_3h_runs_1000_28
+nsteps 1000.0
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory DEBUG_test_atp_3h_runs_1000_28
+nsteps 1000.0
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory DEBUG_test_atp_3h_runs_1000_28
+nsteps 1000.0
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory DEBUG_test_atp_3h_runs_1000_28
+nsteps 1000.0
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory DEBUG_test_atp_3h_runs_1000_28
+nsteps 1000.0
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory test_atp_3h_runs_5000_29
+nsteps 5000.0
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory DEBUG_test_atp_3h_runs_5000_29
+nsteps 5000.0
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory DEBUG_test_atp_3h_runs_5000_29
+nsteps 5000.0
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory DEBUG_test_atp_3h_runs_5000_29
+nsteps 5000.0
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory DEBUG_test_atp_3h_runs_10000_29
+nsteps 10000.0
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory DEBUG_test_atp_3h_runs_50000_30
+nsteps 50000.0
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory DEBUG_test_atp_3h_runs_500000_31
+nsteps 500000.0
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory DEBUG_test_atp_3h_runs_1000_32
+nsteps 1000.0
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory DEBUG_test_atp_3h_runs_1000_32
+nsteps 1000.0
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory DEBUG_test_atp_3h_runs_1000_32
+nsteps 1000.0
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory DEBUG_test_atp_3h_runs_1000_32
+nsteps 1000.0
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory DEBUG_test_atp_3h_runs_1000_33
+nsteps 1000.0
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory DEBUG_test_atp_3h_runs_1000_34
+nsteps 1000.0
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory DEBUG_test_atp_3h_runs_500000_34
+nsteps 500000.0
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory DEBUG_test_atp_3h_runs_5000_35
+nsteps 5000.0
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory DEBUG_test_atp_3h_runs_20000_37
+nsteps 20000.0
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory DEBUG_test_atp_3h_runs_20000_38
+nsteps 20000.0
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory DEBUG_test_atp_3h_runs_200000_39
+nsteps 200000.0
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory DEBUG_test_atp_3h_runs_20000_40
+nsteps 20000.0
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory DEBUG_test_atp_3h_runs_20000_41
+nsteps 20000.0
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory DEBUG_test_atp_3h_runs_20000_42
+nsteps 20000.0
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory DEBUG_test_atp_3h_runs_20000_42
+nsteps 20000.0
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory DEBUG_test_atp_3h_runs_20000_43
+nsteps 20000.0
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory DEBUG_test_atp_3h_runs_20000_43
+nsteps 20000.0
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory DEBUG_test_atp_3h_runs_50000_43
+nsteps 50000.0
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory DEBUG_test_atp_3h_runs_50000_43
+nsteps 50000.0
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory DEBUG_test_atp_3h_runs_50000_44
+nsteps 50000.0
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory DEBUG_test_atp_3h_runs_50000_45
+nsteps 50000.0
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory DEBUG_test_atp_3h_runs_50000_46
+nsteps 50000.0
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory DEBUG_test_atp_3h_runs_5000_48
+nsteps 5000.0
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory DEBUG_test_atp_3h_runs_5000_49
+nsteps 5000.0
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory DEBUG_test_atp_3h_runs_5000_50
+nsteps 5000.0
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory DEBUG_test_atp_3h_runs_5000_51
+nsteps 5000.0
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory DEBUG_test_atp_3h_runs_500_53
+nsteps 500.0
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory DEBUG_test_atp_3h_runs_500_53
+nsteps 500.0
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory DEBUG_test_atp_3h_runs_500_53
+nsteps 500.0
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory DEBUG_test_atp_3h_runs_500_53
+nsteps 500.0
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory DEBUG_test_atp_3h_runs_500_53
+nsteps 500.0
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory DEBUG_test_atp_3h_runs_500_53
+nsteps 500.0
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory DEBUG_test_atp_3h_runs_5000_53
+nsteps 5000.0
+
+INITIALIZE_ONLY 1
+LOAD_MODEL 0
+initial_model_n 0
+directory DEBUG_test_atp_3h_runs_5000_54
+nsteps 5000.0
