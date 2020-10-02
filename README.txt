@@ -1,5 +1,8 @@
 Examining the transient behavior of seperate transport cycles
 
+Jupyter notebook w/ 4 ideal 1:1 antiporters based roughly on the Gdx transporter. 
+
+
 ..................... from main branch .................................
 On-going research into systems-based modeling of molecular machines. 
 
