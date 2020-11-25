@@ -1,11 +1,10 @@
-Examining the transient behavior of seperate transport cycles
+/transient:
+    Examining the transient behavior of seperate transport cycles
+    Jupyter notebook w/ 4 ideal 1:1 antiporters based roughly on the Gdx transporter. 
+    Notes on Bayesian 'model fitting'
 
-Jupyter notebook w/ 4 ideal 1:1 antiporters based roughly on the Gdx transporter. 
 
-Notes on Bayesian 'model fitting'
-
-
-..................... from main branch .................................
+..................... from main branch (archive) .................................
 On-going research into systems-based modeling of molecular machines. 
 
 For an overview of the general methods used, see the preprint: https://www.biorxiv.org/content/10.1101/685933v3
@@ -14,5 +13,7 @@ This repository contains:
 a) /manuscript: data and scripts needed to reproduce the current (submitted) manuscript  
 b) /old_scripts: older scripts which may be useful for future work
 c) /scripts: scripts used in current research
+
+
 
 Note that the software in this repository have had limited testing, and are not recommended for public use. 
