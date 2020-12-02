@@ -8,7 +8,7 @@ Exploring the mechanistic models of molecular machines
 
 ### Copyright
 
-Copyright (c) 2020, Augeorge
+Copyright (c) 2020, Zuckerman Lab, OHSU
 
 
 #### Acknowledgements
