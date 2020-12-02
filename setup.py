@@ -22,8 +22,8 @@ except:
 setup(
     # Self-descriptive entries which should always be present
     name='ModelExplorerPy',
-    author='Augeorge',
-    author_email='30163079+augeorge@users.noreply.github.com',
+    author='Zuckerman Lab',
+    author_email='zuckermd@ohsu.edu',
     description=short_description[0],
     long_description=long_description,
     long_description_content_type="text/markdown",

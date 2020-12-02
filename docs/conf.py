@@ -23,9 +23,9 @@ import ModelExplorerPy
 # -- Project information -----------------------------------------------------
 
 project = 'ModelExplorerPy'
-copyright = ("2020, Augeorge. Project structure based on the "
+copyright = ("2020, Zuckerman Lab. Project structure based on the "
              "Computational Molecular Science Python Cookiecutter version 1.4")
-author = 'Augeorge'
+author = 'Zuckerman Lab'
 
 # The short X.Y version
 version = ''
