@@ -1,4 +1,4 @@
-On-going research into systems-based modeling of molecular machines. 
+Archived research into systems-based modeling of molecular machines. 
 
 For an overview of the general methods used, see the PLOS Comp. Bio. Paper by George et al:https://doi.org/10.1371/journal.pcbi.1007884 
 
