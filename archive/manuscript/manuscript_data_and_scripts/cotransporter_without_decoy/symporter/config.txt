@@ -1,0 +1,30 @@
+#ModelExplorer config file (using config::simple)
+#format: 'keyname value'. No apostrophe, w/ space as delimiter.
+#no comments on same line as key/value pair
+#default values in code/readme
+
+#simulation config
+directory symporter
+seed 123456
+nsteps 1e6
+graph 1
+dprint 0.5e3
+tol 0.3
+
+#transporter type
+energy_function symporter
+
+##physical parameters
+#na_first 1
+#dmu_N -4
+dmu_S 2
+dmu_W 2
+#fmu_N 0.5
+#fmu_S 0.5
+#fmu_W 0.5
+
+##proofreading parameters
+#proof 1
+#alpha 1
+#dg_sw 1
+#Sb_Wb_tied 3

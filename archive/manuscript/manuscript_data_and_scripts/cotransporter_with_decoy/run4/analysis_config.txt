@@ -1,0 +1,39 @@
+#ModelAnalyzer config file (using config::simple)
+#format: 'keyname value'. No apostrophe, w/ space as delimiter.
+#no comments on same line as key/value pair
+#default values in code/readme
+
+#energy files
+efile_init energies-358000
+bfile_init barriers-358000
+
+#simulation config
+directory model_n358000
+seed 456789
+nsteps 1e2
+graph 1
+tol 0.3
+
+
+#transporter type
+energy_function symporter
+
+##physical parameters
+#na_first 1
+dmu_N -4
+dmu_S 2
+dmu_W 2
+#fmu_N 0.5
+#fmu_S 0.5
+#fmu_W 0.5
+
+##proofreading parameters
+proof 1
+alpha 1
+dg_sw 1
+Sb_Wb_tied 3
+
+##manual adjustment Parameters
+#manually_adjust  1
+#adjust_barrier  "OF-Nb-So-Wo_AND_IF-Nb-So-Wo"
+#energy_adjustment 100
